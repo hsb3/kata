@@ -408,6 +408,132 @@ Like the project lifecycle methods, these are trusted in-process application
 methods rather than network authentication boundaries. The embedding host must
 authorize create, ensure, list, and revoke operations before calling them.
 
+## Federation credential providers
+
+A credential provider lets a host application approve Kata federation using
+its own account and project permissions. The caller supplies a saved token;
+the provider authorizes that exact token for one project and installation.
+The provider does not receive a daemon administration token.
+
+**Available now:** `go.kenn.io/kata/pkg/federationprovider` provides Go wire
+types, a request reader, a response writer, and an executable client. An embedded
+host can use `Service.EnsureFederationEnrollment` to accept the saved token.
+
+**Not available yet:** configuring a provider in `config.toml` or using it
+through Kata's federation reconciler. This is a building block, not a daemon
+setup procedure.
+
+### Responsibilities
+
+- The caller saves a random request UUID and a random 32-byte token before
+  calling the provider. Every retry uses the same pair.
+- The provider verifies the person's authority and obtains approval for the
+  project and permissions. It approves the supplied token, not a replacement.
+- The caller saves the accepted project and enrollment identifiers before
+  federation. Later replies for that request must match the saved identifiers.
+  `Exchange` checks the request and target; the caller owns this saved-state
+  comparison.
+- Release cancels or revokes exactly the saved request. Keep that request until
+  the provider confirms `released`, including after a failed exchange.
+- The host enforces credential expiry. This protocol carries the expiry time;
+  it does not add expiry enforcement to standalone Kata storage.
+
+### Executable exchange
+
+Use a trusted executable and argument array, for example
+`["example-credential-provider", "--profile", "work"]`. `Exchange` runs it
+directly, without a shell, and inherits the caller's environment. A provider can
+use the operator's normal account configuration.
+
+- Stdin and stdout each carry one UTF-8 JSON object. No progress text or prompts.
+- Each document is at most 16 KiB, including whitespace. It contains operation
+  metadata, not project data.
+- An invocation lasts at most 60 seconds, or the caller's shorter context
+  deadline. Cancellation and excess output terminate the helper's process tree.
+- Unknown, duplicate, incorrectly cased, or null fields are invalid. So are
+  extra documents and unsupported versions.
+- The client discards stderr and does not include parser details, executable
+  arguments, or helper output in errors. Providers must avoid logging secrets.
+- The package does not retry, store tokens, select an account, or open a browser.
+
+| Exit | Meaning |
+| --- | --- |
+| `0` | One valid response, including pending approval or denial. |
+| `2` | Invalid input. Perform no authorization or release action. |
+| `1` | The provider could not finish a valid exchange. |
+
+Any nonzero exit discards all stdout, even a complete `ready` response. A failed
+exchange does not prove that the host made no changes. Keep the saved request
+and token for retry or release.
+
+### Request fields
+
+Both operations require `version` (integer `1`), `operation`, and `request_id`.
+The UUID uses lowercase, hyphenated text and must not be nil. Kata identity
+fields use uppercase ULIDs. All string fields must be nonempty.
+
+An `authorize` request also requires:
+
+| Field | Meaning |
+| --- | --- |
+| `hub_url` | Expected HTTPS base, including its mount. No user info, query, or fragment. |
+| `project` | Destination project key understood by the host. |
+| `spoke_instance_uid` | The caller's Kata installation identity. |
+| `local_project_uid` | The caller's local project identity. |
+| `intent` | `read_only`, `collaborate`, or `migrate`. |
+| `candidate_token` | The saved 32-byte token encoded as unpadded base64url. |
+
+A `release` request includes none of those authorize-only fields:
+
+```json
+{
+  "version": 1,
+  "operation": "release",
+  "request_id": "8b60f249-b495-4f17-8999-c64382e05680"
+}
+```
+
+Providers use `DecodeRequest(io.Reader)` and
+`WriteResponse(io.Writer, Request, Response)`. Clients use
+`Exchange(context.Context, []string, Request)`.
+
+### Response fields
+
+Every response echoes `version`, `operation`, and `request_id`, and includes a
+`status`. An optional `message` is non-secret display text, never a command.
+
+| Status | Caller action |
+| --- | --- |
+| `ready` | Save the enrollment and start federation. |
+| `approval_required` | Wait for manager approval; retry the same request. |
+| `sign_in_required` | Report that account sign-in is needed. Do not substitute device authority. |
+| `denied` | Stop automatic authorization retries for this request. |
+| `conflict` | Keep state and ask for an explicit correction. |
+| `unavailable` | Keep state and retry later. |
+| `released` | Cleanup is complete; the request no longer grants access. |
+
+A release returns only `released`, `conflict`, `denied`, or `unavailable`.
+It cannot grant a connection. Only `ready` includes the following fields;
+all are required:
+
+| Field | Requirement |
+| --- | --- |
+| `hub_url` | Matches the requested base, including its mount. |
+| `project_id`, `enrollment_id` | Positive integers assigned by the host. |
+| `project_uid` | The destination project's uppercase ULID. |
+| `actor` | Nonempty actor name for federation. |
+| `capabilities` | `pull` for `read_only`; `claim,pull,push` for `collaborate` or `migrate`. |
+| `expires_at` | The host's expiry as UTC RFC 3339 text ending in `Z`. |
+
+`claim` is the canonical wire capability. `lease` is a human-facing spelling,
+not a response value. A provider cannot silently change the requested
+permissions and report `ready`. Responses never return a token.
+
+URL matching uses Kata's canonical HTTP base rules: normalize host case and
+the default HTTPS port, remove trailing slashes, and preserve the mount path.
+A different host, nondefault port, or mount is rejected. A successful `Exchange`
+returns the canonical base.
+
 ## Storage and PostgreSQL policy
 
 `Config.DSN` is required and accepts a bare SQLite path, a `sqlite://` URL, or a
