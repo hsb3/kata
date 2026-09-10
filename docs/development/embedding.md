@@ -378,9 +378,35 @@ so an ID from another project is not accepted; repeating an exact revocation is
 harmless. History remains listable and credentials remain revocable after a
 project is archived, but archived projects cannot receive new enrollments.
 
+### Accept a saved token
+
+Use `EnsureFederationEnrollment` when the caller already owns a token and must
+retry safely after an interrupted request. Generate 32 random bytes, encode
+them as unpadded base64url, and save the token before calling:
+
+```go
+enrollment, err := service.EnsureFederationEnrollment(ctx, kata.FederationEnrollmentSpec{
+	ProjectUID:       "01HZNQ7VFPK1XGD8R5MABCD4EX",
+	SpokeInstanceUID: "01HZNQ7VFPK1XGD8R5MABCD4EA",
+	Capabilities:     "claim,pull,push",
+	Actor:            "Example Operator",
+}, savedToken)
+```
+
+- The result contains enrollment metadata, not the token or its hash.
+- Repeating the call with the same token and scope returns the same active
+  enrollment. The token authenticates ordinary scoped federation requests.
+- Reusing that token with a different project, spoke instance, actor,
+  capabilities, or adoption permission returns
+  `ErrFederationEnrollmentTokenConflict`. Revoked tokens return the same error;
+  retrying does not restore access.
+- A different token may create another credential for the same project and
+  instance. Hosts that require one live credential must enforce that rule
+  themselves. This method does not rotate or revoke another credential.
+
 Like the project lifecycle methods, these are trusted in-process application
 methods rather than network authentication boundaries. The embedding host must
-authorize create, list, and revoke operations before calling them.
+authorize create, ensure, list, and revoke operations before calling them.
 
 ## Storage and PostgreSQL policy
 
