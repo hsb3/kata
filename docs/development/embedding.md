@@ -423,6 +423,15 @@ host can use `Service.EnsureFederationEnrollment` to accept the saved token.
 through Kata's federation reconciler. This is a building block, not a daemon
 setup procedure.
 
+Kata's credential file can retain the provider operation beside its saved
+token. It stores the request UUID, executable arguments, intent, original local
+project and installation identifiers, and any accepted enrollment and expiry.
+Moving a credential to the hub project UID preserves the original request.
+Updates and cleanup compare the whole saved operation by value, so rereading
+the file does not break a retry and stale cleanup cannot delete a newer request.
+The executable arguments remain available for release after a mapping is removed;
+the reconciler does not perform that release yet.
+
 ### Responsibilities
 
 - The caller saves a random request UUID and a random 32-byte token before

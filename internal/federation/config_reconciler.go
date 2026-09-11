@@ -892,7 +892,7 @@ func preflightMapping(
 		if hasManagedReservation &&
 			(!credentialState.found ||
 				credentialState.key != managedReservation.ProjectUID ||
-				credentialState.credential != managedReservation.Credential) {
+				!credentialState.credential.Equal(managedReservation.Credential)) {
 			return preflight, reconcileError(
 				ErrConfigurationConflict,
 				"managed federation reservation differs from credential state",
@@ -1314,7 +1314,7 @@ func readCredentialState(
 	if err != nil {
 		return credentialLookup{}, reconcileError(ErrCredentialIO, "read federation credential")
 	}
-	if finalFound && localFound && finalCredential != localCredential {
+	if finalFound && localFound && !finalCredential.Equal(localCredential) {
 		return credentialLookup{}, reconcileError(
 			ErrConfigurationConflict,
 			"multiple federation credentials disagree for one local project",

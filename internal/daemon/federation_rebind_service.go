@@ -253,7 +253,7 @@ func RebindFederationReplica(
 			"",
 		)
 	}
-	if currentCredential != credential && currentCredential != targetCredential {
+	if !currentCredential.Equal(credential) && !currentCredential.Equal(targetCredential) {
 		return RebindFederationReplicaResult{}, federationReplicaError(
 			ErrFederationReplicaCredentialConflict,
 			"federation credential changed during rebind validation",

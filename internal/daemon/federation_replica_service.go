@@ -177,7 +177,7 @@ func beginFederationReplicaHubOperation(
 	validPendingState := recoverPendingLeave &&
 		current.LeavePending &&
 		current.PendingEnrollmentID == 0
-	if !found || current != baseline.Credential ||
+	if !found || !current.Equal(baseline.Credential) ||
 		(recoverPendingLeave && !validPendingState) ||
 		(!recoverPendingLeave && current.LeavePending) {
 		return nil, federationReplicaError(
@@ -685,7 +685,7 @@ func revalidateManagedReservation(
 	}
 	if !found ||
 		match.ProjectUID != p.ManagedReservation.ProjectUID ||
-		match.Credential != p.ManagedReservation.Expected {
+		!match.Credential.Equal(p.ManagedReservation.Expected) {
 		return federationReplicaError(
 			ErrFederationReplicaReservationChanged,
 			"managed federation reservation changed while contacting the hub",
@@ -912,6 +912,12 @@ func ensureFederationReplicaCredentialTarget(
 	if !ok {
 		return nil
 	}
+	if existing.Provider != nil && !existing.Equal(p.Credential) {
+		return federationReplicaCredentialTargetConflict(
+			ctx, store, p,
+			"existing provider operation differs from the requested credential",
+		)
+	}
 	existingBaseURL, err := config.CanonicalHTTPBaseURL(existing.HubURL)
 	if err != nil {
 		return federationReplicaCredentialTargetConflict(
@@ -1004,7 +1010,7 @@ func ensureFederationReplicaCredentialRekey(
 				return credentialIOError("read federation credential adoption source")
 			}
 			if ok {
-				if existing != p.Credential {
+				if !existing.Equal(p.Credential) {
 					return federationReplicaError(
 						ErrFederationReplicaCredentialConflict,
 						"standalone project credential differs from the requested credential",
