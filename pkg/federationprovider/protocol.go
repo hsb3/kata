@@ -73,6 +73,20 @@ func DecodeRequest(reader io.Reader) (Request, error) {
 	return decodeRequest(data)
 }
 
+// DecodeResponse reads one bounded result and checks it against the exact
+// request. Providers that relay another service's decision use this before
+// forwarding it; decoding into Response alone does not enforce the contract.
+func DecodeResponse(reader io.Reader, request Request) (Response, error) {
+	if !validRequest(request) {
+		return Response{}, ErrInvalidRequest
+	}
+	data, err := io.ReadAll(io.LimitReader(reader, MaxDocumentBytes+1))
+	if err != nil {
+		return Response{}, ErrInvalidResponse
+	}
+	return decodeResponse(data, request)
+}
+
 // WriteResponse validates the entire result before writing one JSON document.
 // A provider exits 0 only after this succeeds, including for domain denials.
 // On a write failure, exit nonzero: clients must discard partial output.

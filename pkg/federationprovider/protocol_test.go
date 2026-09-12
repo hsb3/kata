@@ -100,3 +100,23 @@ func TestWriteResponseChecksRequestBeforeWriting(t *testing.T) {
 	require.NoError(t, federationprovider.WriteResponse(&out, request, response))
 	require.JSONEq(t, `{"version":1,"operation":"authorize","request_id":"`+requestID+`","status":"approval_required","message":"Ask a project manager to approve this request."}`, out.String())
 }
+
+func TestDecodeResponseChecksRawContractAndTarget(t *testing.T) {
+	request := authorizationRequest()
+	response, err := federationprovider.DecodeResponse(strings.NewReader(readyJSON), request)
+	require.NoError(t, err)
+	require.Equal(t, int64(9), response.EnrollmentID)
+	require.Equal(t, "claim,pull,push", response.Capabilities)
+	for name, raw := range map[string]string{
+		"changed target":         strings.Replace(readyJSON, "hub.example", "other.example", 1),
+		"null extra field":       strings.Replace(readyJSON, `"status":"ready"`, `"status":"ready","message":null`, 1),
+		"extra document":         readyJSON + "{}",
+		"oversize":               readyJSON + strings.Repeat(" ", 16*1024),
+		"ready fields on denial": strings.Replace(readyJSON, `"status":"ready"`, `"status":"denied"`, 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := federationprovider.DecodeResponse(strings.NewReader(raw), request)
+			require.ErrorIs(t, err, federationprovider.ErrInvalidResponse)
+		})
+	}
+}

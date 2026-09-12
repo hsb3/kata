@@ -505,6 +505,9 @@ A `release` request includes none of those authorize-only fields:
 Providers use `DecodeRequest(io.Reader)` and
 `WriteResponse(io.Writer, Request, Response)`. Clients use
 `Exchange(context.Context, []string, Request)`.
+Providers that relay a decision can use `DecodeResponse(io.Reader, Request)`
+to validate the complete response before forwarding it. This checks the raw
+JSON fields and size as well as the requested target and permissions.
 
 ### Response fields
 
