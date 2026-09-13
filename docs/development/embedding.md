@@ -419,9 +419,10 @@ The provider does not receive a daemon administration token.
 types, a request reader, a response writer, and an executable client. An embedded
 host can use `Service.EnsureFederationEnrollment` to accept the saved token.
 
-**Not available yet:** provider-backed synchronization through Kata's
-federation reconciler. The parser accepts the new mapping fields, but this is
-still a building block, not a usable daemon setup procedure.
+**In development:** the reconciler can obtain approval, read federation
+metadata with the approved token, and attach a local replica. Normal leave
+commands, mapping removal, and status still need provider integration. This is
+not yet a complete daemon setup procedure.
 
 The daemon's internal provider controller now:
 
@@ -431,9 +432,19 @@ The daemon's internal provider controller now:
 - Reuses a confirmed result without contacting the helper again.
 - Keeps failed releases pending and blocks further authorization for that request.
 
-The reconciler still needs to call this controller, fetch federation metadata,
-and attach the replica. Normal leave commands, mapping removal, and status also
-need provider integration. These controls do not enable synchronization yet.
+Provider-backed reconciliation makes no catalog-administration calls. It checks
+the metadata's project against the saved approval and retains that approval
+when metadata retrieval or local attachment fails.
+
+- `read_only` and `collaborate` attach only an empty local project. Existing
+  tasks, recurring tasks, or project metadata require `migrate` approval.
+- `migrate` uses the existing adoption path to import local data.
+- Push is enabled only when the approved credential permits it.
+- Attachment replaces old local catalog events when the project takes the
+  hub identity. Their checksums name the old identity. One new local event
+  updates browser readers without pushing empty metadata to the hub.
+- Ordinary teardown refuses to delete a provider request until release is
+  confirmed. The normal leave command does not yet drive that release.
 
 Kata's credential file can retain the provider operation beside its saved
 token. It stores the request UUID, executable arguments, intent, original local

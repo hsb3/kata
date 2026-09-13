@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"uuid"
 
 	"go.kenn.io/kata/internal/config"
@@ -145,6 +146,10 @@ func exchangeFederationProvider(
 	next.Status = response.Status
 	replacement.Credential.Provider = &next
 	if response.Status == "ready" {
+		response.Actor = strings.TrimSpace(response.Actor)
+		if db.ValidateTokenActor(response.Actor) != nil {
+			return reservation, federationprovider.ErrInvalidResponse
+		}
 		replacement.Credential.HubProjectID = response.ProjectID
 		replacement.Credential.Actor = response.Actor
 		replacement.Credential.Capabilities = response.Capabilities

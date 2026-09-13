@@ -59,13 +59,59 @@ func TestFederationProviderProcess(_ *testing.T) {
 		response.ProjectUID = replicaHubProjectUID
 		response.EnrollmentID = 7
 		response.Actor = "Example User"
+		if actor := os.Getenv("KATA_TEST_PROVIDER_ACTOR"); actor != "" {
+			response.Actor = actor
+		}
 		response.Capabilities = "claim,pull,push"
+		if request.Intent == "read_only" {
+			response.Capabilities = "pull"
+		}
 		response.ExpiresAt = time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
 	}
 	if err := federationprovider.WriteResponse(os.Stdout, request, response); err != nil {
 		os.Exit(2)
 	}
 	os.Exit(0)
+}
+
+func TestFederationProviderAttachesEmptyReplicaWithoutAdoption(t *testing.T) {
+	catalog, mapping := providerMapping(t)
+	mapping.Intent = "read_only"
+	t.Setenv("KATA_TEST_PROVIDER_STATUS", "ready")
+	store := openReplicaServiceStore(t)
+	project, err := store.CreateProject(t.Context(), mapping.SpokeProject)
+	require.NoError(t, err)
+	credentials := config.DefaultFederationCredentialStore()
+	ready, err := daemon.AuthorizeFederationProvider(t.Context(), store, credentials, catalog, mapping)
+	require.NoError(t, err)
+	var events []db.Event
+	params := daemon.EnsureFederationReplicaParams{
+		HubURL: catalog.URL, HubProjectID: 42, HubProjectUID: replicaHubProjectUID,
+		ProjectName: project.Name, ReplayHorizonEventID: 9, Credential: ready.Credential,
+		AttachEmpty:      true,
+		CredentialRekey:  &daemon.FederationReplicaCredentialRekeySource{ProjectUID: ready.ProjectUID, Expected: ready.Credential},
+		ProjectEventSink: func(event db.Event) { events = append(events, event) },
+	}
+	result, err := daemon.EnsureFederationReplica(t.Context(), store, credentials, nil, params)
+	require.NoError(t, err)
+	assert.False(t, result.Adopted)
+	assert.False(t, result.Binding.PushEnabled)
+	assert.Equal(t, project.ID, result.Project.ID)
+	assert.Equal(t, replicaHubProjectUID, result.Project.UID)
+	require.Len(t, events, 1)
+	assert.Equal(t, replicaHubProjectUID, events[0].ProjectUID)
+	assert.Equal(t, result.CreatedEvent.ID, events[0].ID)
+	saved, found, err := credentials.FederationCredential(t.Context(), replicaHubProjectUID)
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, project.UID, saved.Provider.LocalProjectUID)
+	assert.Equal(t, ready.Credential.Provider.RequestID, saved.Provider.RequestID)
+
+	// After binding, replay does not rekey again or publish another event.
+	params.CredentialRekey = nil
+	_, err = daemon.EnsureFederationReplica(t.Context(), store, credentials, nil, params)
+	require.NoError(t, err)
+	assert.Len(t, events, 1, "resuming must not create another catalog event")
 }
 
 func TestFederationProviderPersistsBeforeContactAndResumes(t *testing.T) {
@@ -134,6 +180,8 @@ func TestFederationProviderPersistsBeforeContactAndResumes(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, found)
 	assert.True(t, retained.Credential.LeavePending)
+	_, err = daemon.LeaveFederationReplica(t.Context(), store, credentials, nil, project.ID)
+	require.ErrorIs(t, err, daemon.ErrFederationReplicaLeavePending, "ordinary teardown must not discard an unconfirmed provider release")
 	_, err = daemon.AuthorizeFederationProvider(t.Context(), store, credentials, catalog, mapping)
 	require.ErrorIs(t, err, daemon.ErrFederationReplicaLeavePending)
 	t.Setenv("KATA_TEST_PROVIDER_STATUS", "released")
@@ -147,6 +195,11 @@ func TestFederationProviderPersistsBeforeContactAndResumes(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, found)
 	assert.True(t, peer.Equal(peerAfter), "releasing one request must not change another credential")
+	_, err = daemon.LeaveFederationReplica(t.Context(), store, credentials, nil, project.ID)
+	require.NoError(t, err)
+	_, found, err = credentials.FindManagedFederationCredential(t.Context(), mapping.SpokeProject)
+	require.NoError(t, err)
+	assert.False(t, found, "confirmed release permits exact local cleanup")
 }
 
 func TestFederationProviderKeepsFailedAndDeniedRequests(t *testing.T) {
@@ -197,4 +250,27 @@ func TestFederationProviderPreservesUnrelatedCredentials(t *testing.T) {
 	after, err := os.ReadFile(path) //nolint:gosec // credential path belongs to this test's temporary Kata home
 	require.NoError(t, err)
 	assert.True(t, string(before) == string(after), "existing credentials must remain untouched")
+}
+
+func TestFederationProviderValidatesActorBeforeSavingReady(t *testing.T) {
+	catalog, mapping := providerMapping(t)
+	store := openReplicaServiceStore(t)
+	_, err := store.CreateProject(t.Context(), mapping.SpokeProject)
+	require.NoError(t, err)
+	credentials := config.DefaultFederationCredentialStore()
+	t.Setenv("KATA_TEST_PROVIDER_STATUS", "ready")
+	t.Setenv("KATA_TEST_PROVIDER_ACTOR", " BOOTSTRAP ")
+	_, err = daemon.AuthorizeFederationProvider(t.Context(), store, credentials, catalog, mapping)
+	require.ErrorIs(t, err, federationprovider.ErrInvalidResponse)
+	pending, found, err := credentials.FindManagedFederationCredential(t.Context(), mapping.SpokeProject)
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Empty(t, pending.Credential.Provider.Status)
+	assert.Empty(t, pending.Credential.Actor)
+	t.Setenv("KATA_TEST_PROVIDER_ACTOR", " Example User ")
+	ready, err := daemon.AuthorizeFederationProvider(t.Context(), store, credentials, catalog, mapping)
+	require.NoError(t, err)
+	assert.Equal(t, "Example User", ready.Credential.Actor)
+	assert.Equal(t, pending.Credential.Provider.RequestID, ready.Credential.Provider.RequestID)
+	assert.True(t, pending.Credential.Token == ready.Credential.Token)
 }

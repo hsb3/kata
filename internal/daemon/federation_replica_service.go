@@ -94,6 +94,7 @@ type EnsureFederationReplicaParams struct {
 	ManagedReservation                 *FederationReplicaManagedReservation
 	ProjectEventSink                   func(db.Event)
 	PushEnabled, AdoptExisting         bool
+	AttachEmpty                        bool
 }
 
 // FederationReplicaCredentialRekeySource identifies the standalone credential
@@ -409,6 +410,10 @@ func leaveFederationReplicaState(
 		return db.LeaveFederationResult{}, credentialIOError(
 			"read managed reservation before leave",
 		)
+	}
+
+	if managedReservationFound && match.Credential.Provider != nil && match.Credential.Provider.Status != "released" {
+		return db.LeaveFederationResult{}, ErrFederationReplicaLeavePending
 	}
 
 	// The handler's early role check protects archive-before-detach. Repeat it
@@ -801,6 +806,11 @@ func normalizeFederationReplicaParams(
 		)
 	}
 	if p.AdoptExisting {
+		if p.AttachEmpty {
+			return EnsureFederationReplicaParams{}, federationReplicaError(
+				ErrFederationReplicaInvalidInput, "choose empty attachment or adoption, not both", "",
+			)
+		}
 		if !p.PushEnabled {
 			return EnsureFederationReplicaParams{}, federationReplicaError(
 				errFederationReplicaCapabilityMismatch,
@@ -818,12 +828,12 @@ func normalizeFederationReplicaParams(
 		}
 	}
 	if p.CredentialRekey != nil {
-		if !p.AdoptExisting ||
+		if (!p.AdoptExisting && !p.AttachEmpty) ||
 			!katauid.Valid(p.CredentialRekey.ProjectUID) ||
 			p.CredentialRekey.ProjectUID == p.HubProjectUID {
 			return EnsureFederationReplicaParams{}, federationReplicaError(
 				ErrFederationReplicaInvalidInput,
-				"credential rekey requires a distinct valid adoption source project UID",
+				"credential rekey requires a distinct valid attachment source project UID",
 				"",
 			)
 		}
@@ -993,7 +1003,7 @@ func ensureFederationReplicaCredentialRekey(
 	p EnsureFederationReplicaParams,
 ) error {
 	source := p.CredentialRekey
-	if source == nil && p.AdoptExisting {
+	if source == nil && (p.AdoptExisting || p.AttachEmpty) {
 		project, err := store.ProjectByNameIncludingArchived(ctx, p.ProjectName)
 		if err != nil && !errors.Is(err, db.ErrNotFound) {
 			return fmt.Errorf("resolve federation credential adoption source: %w", err)
@@ -1086,15 +1096,16 @@ func ensureReplicaBindingOrAdopt(
 	store db.Storage,
 	p EnsureFederationReplicaParams,
 ) (EnsureFederationReplicaResult, error) {
-	if p.AdoptExisting {
+	if p.AdoptExisting || p.AttachEmpty {
 		if result, adopted, err := adoptExistingReplica(ctx, store, p); err != nil {
 			return EnsureFederationReplicaResult{}, err
 		} else if adopted {
 			return EnsureFederationReplicaResult{
 				Project:               result.Project,
 				Binding:               result.Binding,
-				Adopted:               true,
+				Adopted:               p.AdoptExisting,
 				AdoptionSnapshotCount: result.AdoptionSnapshotCount,
+				CreatedEvent:          result.CreatedEvent,
 			}, nil
 		}
 	}
@@ -1146,6 +1157,7 @@ func adoptExistingReplica(
 					ReplayHorizonEventID: p.ReplayHorizonEventID,
 					Actor:                p.Credential.Actor,
 					AllowInsecure:        p.Credential.AllowInsecure,
+					EmptyOnly:            p.AttachEmpty,
 				})
 				if err != nil {
 					if errors.Is(err, db.ErrIssueSyncFederationBinding) {
@@ -1232,6 +1244,7 @@ func adoptExistingReplica(
 		ReplayHorizonEventID: p.ReplayHorizonEventID,
 		Actor:                p.Credential.Actor,
 		AllowInsecure:        p.Credential.AllowInsecure,
+		EmptyOnly:            p.AttachEmpty,
 	})
 	if err != nil {
 		if errors.Is(err, db.ErrIssueSyncFederationBinding) {

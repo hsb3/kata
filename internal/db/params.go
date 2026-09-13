@@ -690,6 +690,8 @@ type AdoptProjectIntoFederationParams struct {
 	ReplayHorizonEventID int64
 	Actor                string
 	AllowInsecure        bool
+	// EmptyOnly attaches an empty project without importing its local history.
+	EmptyOnly bool
 }
 
 // AdoptProjectIntoFederationResult describes the adopted project, binding, and
@@ -698,6 +700,7 @@ type AdoptProjectIntoFederationResult struct {
 	Project               Project
 	Binding               FederationBinding
 	AdoptionSnapshotCount int64
+	CreatedEvent          *Event
 }
 
 // LeaveFederationResult reports what LeaveFederationReplica removed. ProjectUID

@@ -242,12 +242,16 @@ func (r *Reconciler) Health() Health {
 }
 
 func (r *Reconciler) reconcile(ctx context.Context, target Target, drain *activity.Lease) error {
-	if r.hubFactory == nil {
-		return reconcileError(ErrConfigurationConflict, "missing federation hub factory")
-	}
-	hub, err := r.hubFactory(ctx, target.Catalog)
-	if err != nil {
-		return err
+	var hub Hub
+	if target.Mapping.CredentialProvider == nil {
+		if r.hubFactory == nil {
+			return reconcileError(ErrConfigurationConflict, "missing federation hub factory")
+		}
+		var err error
+		hub, err = r.hubFactory(ctx, target.Catalog)
+		if err != nil {
+			return err
+		}
 	}
 	projectEventSink := r.projectEventSink
 	if r.projectEventSinkFrom != nil {
@@ -344,6 +348,9 @@ func classifyReconciliationError(err error) (string, int) {
 	if err == nil {
 		return "", 0
 	}
+	if decision, ok := errors.AsType[*providerDecisionError](err); ok {
+		return decision.status, 0
+	}
 	var hubErr *HubError
 	status := 0
 	if errors.As(err, &hubErr) && hubErr != nil {
@@ -426,6 +433,9 @@ func reconcileMapping(
 	wake func(),
 	projectEventSink func(db.Event),
 ) error {
+	if mapping.CredentialProvider != nil {
+		return reconcileProviderMapping(ctx, store, credentials, catalog, mapping, wake, projectEventSink)
+	}
 	managed, ok := credentials.(config.FederationManagedCredentialStore)
 	if !ok {
 		return reconcileError(
