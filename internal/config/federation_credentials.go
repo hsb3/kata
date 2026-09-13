@@ -510,22 +510,19 @@ func ReplaceFederationCredential(replacement FederationCredentialReplacement) er
 }
 
 // ReplaceManagedFederationCredential replaces one exact managed reservation
-// without changing its stable hub UID key.
+// without changing its UID key. Repeating an already-completed replacement
+// succeeds without rewriting the credential file.
 func ReplaceManagedFederationCredential(
 	expected FederationManagedCredentialReservation,
 	replacement FederationManagedCredentialReservation,
 ) error {
 	if expected.ProjectUID == "" || replacement.ProjectUID != expected.ProjectUID ||
-		!replacement.Credential.ManagedByConfig {
+		!expected.Credential.ManagedByConfig || !replacement.Credential.ManagedByConfig {
 		return fmt.Errorf("%w: invalid managed reservation replacement", ErrFederationCredentialConflict)
 	}
-	return updateFederationCredentials(func(creds *FederationCredentials) error {
-		current, found := creds.Projects[expected.ProjectUID]
-		if !found || !current.Equal(expected.Credential) || !current.ManagedByConfig {
-			return fmt.Errorf("%w: managed reservation changed before replacement", ErrFederationCredentialConflict)
-		}
-		creds.Projects[expected.ProjectUID] = replacement.Credential
-		return nil
+	return ReplaceFederationCredential(FederationCredentialReplacement{
+		ProjectUID: expected.ProjectUID, Expected: expected.Credential,
+		Replacement: replacement.Credential,
 	})
 }
 

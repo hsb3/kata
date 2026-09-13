@@ -419,9 +419,21 @@ The provider does not receive a daemon administration token.
 types, a request reader, a response writer, and an executable client. An embedded
 host can use `Service.EnsureFederationEnrollment` to accept the saved token.
 
-**Not available yet:** configuring a provider in `config.toml` or using it
-through Kata's federation reconciler. This is a building block, not a daemon
-setup procedure.
+**Not available yet:** provider-backed synchronization through Kata's
+federation reconciler. The parser accepts the new mapping fields, but this is
+still a building block, not a usable daemon setup procedure.
+
+The daemon's internal provider controller now:
+
+- Saves the request and candidate token before running the helper.
+- Reuses them after pending approval, a failed exchange, or restart.
+- Saves confirmed project, actor, permission, and expiry details before binding.
+- Reuses a confirmed result without contacting the helper again.
+- Keeps failed releases pending and blocks further authorization for that request.
+
+The reconciler still needs to call this controller, fetch federation metadata,
+and attach the replica. Normal leave commands, mapping removal, and status also
+need provider integration. These controls do not enable synchronization yet.
 
 Kata's credential file can retain the provider operation beside its saved
 token. It stores the request UUID, executable arguments, intent, original local
