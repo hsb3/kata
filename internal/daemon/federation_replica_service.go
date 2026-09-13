@@ -231,10 +231,14 @@ func PrepareFederationReplicaLeave(
 			"read federation replica project before leave preparation: %w", err,
 		)
 	}
+	return prepareFederationReplicaLeave(ctx, store, managed, project)
+}
+
+func prepareFederationReplicaLeave(ctx context.Context, store db.Storage, managed config.FederationManagedCredentialStore, project db.Project) (PrepareFederationReplicaLeaveResult, error) {
 	key := federationReplicaTransitionKey(store, project.Name)
 
 	ensureFederationReplicaMu.Lock()
-	match, found, err := managed.FindManagedFederationCredential(ctx, project.Name)
+	match, found, err := config.FindProjectManagedCredential(ctx, managed, project.UID, project.Name)
 	if err != nil {
 		ensureFederationReplicaMu.Unlock()
 		if errors.Is(err, config.ErrFederationCredentialConflict) {
@@ -243,6 +247,9 @@ func PrepareFederationReplicaLeave(
 		return PrepareFederationReplicaLeaveResult{}, credentialIOError(
 			"read managed reservation before leave preparation",
 		)
+	}
+	if found && match.Credential.Provider != nil {
+		key = federationReplicaTransitionKey(store, match.Credential.SpokeProjectName)
 	}
 	if found && !match.Credential.LeavePending {
 		replacement := match
@@ -271,7 +278,7 @@ func PrepareFederationReplicaLeave(
 		ensureFederationReplicaMu.Lock()
 		drained, waiting := federationReplicaTransitions.drainSignal(key)
 		if !waiting {
-			match, found, err = managed.FindManagedFederationCredential(ctx, project.Name)
+			match, found, err = config.FindProjectManagedCredential(ctx, managed, project.UID, project.Name)
 			ensureFederationReplicaMu.Unlock()
 			if err != nil {
 				if errors.Is(err, config.ErrFederationCredentialConflict) {
@@ -281,8 +288,8 @@ func PrepareFederationReplicaLeave(
 					"read prepared managed reservation",
 				)
 			}
-			if found && match.Credential.Provider != nil {
-				if err := stopProviderFederationTransport(ctx, store, projectID); err != nil {
+			if found && match.Credential.Provider != nil && project.ID != 0 {
+				if err := stopProviderFederationTransport(ctx, store, project.ID); err != nil {
 					return PrepareFederationReplicaLeaveResult{}, err
 				}
 			}
@@ -433,8 +440,8 @@ func leaveFederationReplicaState(
 			"read federation replica project before leave: %w", err,
 		)
 	}
-	match, managedReservationFound, err := managed.FindManagedFederationCredential(
-		ctx, project.Name,
+	match, managedReservationFound, err := config.FindProjectManagedCredential(
+		ctx, managed, project.UID, project.Name,
 	)
 	if err != nil {
 		if errors.Is(err, config.ErrFederationCredentialConflict) {

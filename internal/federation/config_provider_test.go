@@ -3,9 +3,11 @@ package federation_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,6 +19,57 @@ import (
 	"go.kenn.io/kata/internal/federation"
 	"go.kenn.io/kata/pkg/federationprovider"
 )
+
+type unavailableProviderProjectStore struct {
+	db.Storage
+	lookupFailed atomic.Bool
+}
+
+func (s *unavailableProviderProjectStore) ProjectByUID(ctx context.Context, uid string) (db.Project, error) {
+	if !s.lookupFailed.Swap(true) {
+		return db.Project{}, errors.New("database connection interrupted")
+	}
+	return s.Storage.ProjectByUID(ctx, uid)
+}
+
+func TestRemovedProviderCleanupSurvivesPurgedProjectAndDatabaseRetry(t *testing.T) {
+	t.Setenv("KATA_HOME", t.TempDir())
+	t.Setenv("KATA_TEST_RECONCILE_PROVIDER", "1")
+	t.Setenv("KATA_TEST_PROVIDER_DECISION", "approval_required")
+	store := openReconcileStore(t)
+	credentials := config.DefaultFederationCredentialStore()
+	executable, err := os.Executable()
+	require.NoError(t, err)
+	project, err := store.CreateProject(t.Context(), "spoke-project")
+	require.NoError(t, err)
+	_, err = daemon.AuthorizeFederationProvider(t.Context(), store, credentials,
+		config.CatalogDaemonConfig{Name: "team-hub", URL: "https://hub.example/tasks"},
+		config.FederationProjectConfig{Hub: "team-hub", SpokeProject: project.Name, HubProject: "hub-project", Intent: "collaborate", CredentialProvider: []string{executable, "-test.run=^TestReconcileProviderProcess$"}})
+	require.NoError(t, err)
+	_, _, err = store.RemoveProject(t.Context(), db.RemoveProjectParams{ProjectID: project.ID, Actor: "Example User"})
+	require.NoError(t, err)
+	_, err = store.PurgeProject(t.Context(), db.PurgeProjectParams{ProjectID: project.ID, Actor: "Example User"})
+	require.NoError(t, err)
+	t.Setenv("KATA_TEST_PROVIDER_DECISION", "released")
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	clock := newManualClock(time.Now())
+	r := federation.NewReconciler(federation.ReconcilerConfig{Store: &unavailableProviderProjectStore{Storage: store}, Credentials: credentials, Clock: clock, Wake: cancel})
+	done := make(chan error, 1)
+	go func() { done <- r.Run(ctx) }()
+	require.Eventually(t, func() bool { return r.Health().LastErrorCategory != "" }, 3*time.Second, 10*time.Millisecond)
+	waitForTimerCount(t, clock, 1)
+	clock.Advance(time.Second)
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(3 * time.Second):
+		require.FailNow(t, "cleanup did not retry the retained request")
+	}
+	_, found, err := credentials.FindManagedFederationCredential(t.Context(), project.Name)
+	require.NoError(t, err)
+	assert.False(t, found)
+}
 
 func TestReconcileProviderProcess(_ *testing.T) {
 	if os.Getenv("KATA_TEST_RECONCILE_PROVIDER") != "1" {
@@ -72,6 +125,8 @@ func TestReconcilerRemovesProviderMappingAndRetriesExactCleanup(t *testing.T) {
 	require.NoError(t, err)
 	peer := config.FederationCredential{HubURL: "https://other.example", Token: "synthetic-peer-token"}
 	require.NoError(t, credentials.StoreFederationCredential(t.Context(), "peer-project", peer))
+	_, _, _, err = store.RenameProjectAndEvent(t.Context(), project.ID, "renamed-project", "Example User")
+	require.NoError(t, err)
 
 	// The process starts with no configured mappings. Its first cleanup attempt
 	// cannot reach the provider; cancellation models shutting down that process.

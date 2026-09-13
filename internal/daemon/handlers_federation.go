@@ -482,7 +482,7 @@ func registerFederationHandlers(humaAPI huma.API, cfg ServerConfig) {
 					found = prepared.ManagedReservationFound
 					findErr = prepareErr
 				} else {
-					match, found, findErr = managed.FindManagedFederationCredential(ctx, project.Name)
+					match, found, findErr = config.FindProjectManagedCredential(ctx, managed, project.UID, project.Name)
 				}
 				switch {
 				case errors.Is(findErr, config.ErrFederationCredentialConflict):
@@ -551,7 +551,7 @@ func registerFederationHandlers(humaAPI huma.API, cfg ServerConfig) {
 			if err != nil {
 				return nil, internalAPIError(err)
 			}
-			match, found, err := managed.FindManagedFederationCredential(ctx, project.Name)
+			match, found, err := config.FindProjectManagedCredential(ctx, managed, project.UID, project.Name)
 			if err != nil {
 				return nil, internalAPIError(err)
 			}
@@ -907,7 +907,7 @@ func federationStatusBody(
 				slices.ContainsFunc(bindings, func(b db.FederationBinding) bool { return b.ProjectID == project.ID }) {
 				continue
 			}
-			saved, found, err := managed.FindManagedFederationCredential(ctx, project.Name)
+			saved, found, err := config.FindProjectManagedCredential(ctx, managed, project.UID, project.Name)
 			if err != nil {
 				return api.FederationStatusBody{}, internalAPIError(err)
 			}

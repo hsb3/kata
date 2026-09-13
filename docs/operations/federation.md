@@ -191,6 +191,10 @@ Provider mappings differ from catalog-admin mappings when removed:
 - A completed explicit leave keeps a secret-free closed marker until you remove
   the mapping. Restarting with that same mapping does not request new access.
 - Other projects and manually stored credentials are not removed or revoked.
+- Cleanup follows the saved project identity after a rename or after an
+  unbound project was purged. A temporary database failure retries that cleanup.
+- If startup reports `credential_io`, correct the owner-private credential file
+  and restart the daemon. Kata does not guess how to repair invalid credentials.
 
 ## Move an existing spoke to a new HTTPS endpoint
 

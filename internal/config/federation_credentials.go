@@ -136,6 +136,7 @@ type FederationCredentialReplacer interface {
 // config-driven federation. Managed credentials have one durable hub UID key.
 type FederationManagedCredentialStore interface {
 	FederationCredentialStore
+	ListManagedFederationCredentials(context.Context) ([]FederationManagedCredentialReservation, error)
 	ReserveManagedFederationCredential(
 		context.Context, FederationManagedCredentialReservation,
 	) error
@@ -156,6 +157,33 @@ type FederationManagedCredentialStore interface {
 // homeFederationCredentialStore uses the standalone daemon's
 // <KATA_HOME>/credentials.toml file.
 type homeFederationCredentialStore struct{}
+
+func (homeFederationCredentialStore) ListManagedFederationCredentials(_ context.Context) ([]FederationManagedCredentialReservation, error) {
+	credentials, err := ReadFederationCredentials()
+	if err != nil {
+		return nil, err
+	}
+	var result []FederationManagedCredentialReservation
+	for uid, credential := range credentials.Projects {
+		if credential.ManagedByConfig {
+			result = append(result, FederationManagedCredentialReservation{ProjectUID: uid, Credential: credential})
+		}
+	}
+	return result, nil
+}
+
+// FindProjectManagedCredential follows a provider's stable project identity
+// after a local rename. Ordinary catalog reservations retain name lookup.
+func FindProjectManagedCredential(ctx context.Context, store FederationManagedCredentialStore, projectUID, projectName string) (FederationManagedCredentialReservation, bool, error) {
+	credential, found, err := store.FederationCredential(ctx, projectUID)
+	if err != nil {
+		return FederationManagedCredentialReservation{}, false, err
+	}
+	if found && credential.ManagedByConfig && credential.Provider != nil {
+		return FederationManagedCredentialReservation{ProjectUID: projectUID, Credential: credential}, true, nil
+	}
+	return store.FindManagedFederationCredential(ctx, projectName)
+}
 
 func (homeFederationCredentialStore) FederationCredential(
 	_ context.Context, projectUID string,

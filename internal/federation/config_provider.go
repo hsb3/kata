@@ -93,26 +93,21 @@ func (r *Reconciler) findRemovedProviderMappings(ctx context.Context) error {
 	if !ok {
 		return nil
 	}
-	projects, err := r.store.ListProjectsIncludingArchived(ctx)
+	reservations, err := managed.ListManagedFederationCredentials(ctx)
 	if err != nil {
-		return reconcileError(ErrLocalStorage, "read projects for provider cleanup")
+		return reconcileError(ErrCredentialIO, "read retained provider cleanup")
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	for _, project := range projects {
-		if slices.ContainsFunc(r.targets, func(t Target) bool { return t.Mapping.SpokeProject == project.Name }) {
+	for _, saved := range reservations {
+		name := saved.Credential.SpokeProjectName
+		if saved.Credential.Provider == nil || slices.ContainsFunc(r.targets, func(t Target) bool { return t.Mapping.SpokeProject == name }) {
 			continue
 		}
-		saved, found, err := managed.FindManagedFederationCredential(ctx, project.Name)
-		if err != nil {
-			return reconcileError(ErrCredentialIO, "read retained provider cleanup")
-		}
-		if found && saved.Credential.Provider != nil {
-			r.targets = append(r.targets, Target{
-				Mapping: config.FederationProjectConfig{SpokeProject: project.Name}, removeProvider: true,
-			})
-			r.states = append(r.states, reconciliationState{})
-		}
+		r.targets = append(r.targets, Target{
+			Mapping: config.FederationProjectConfig{SpokeProject: name}, removeProvider: true,
+		})
+		r.states = append(r.states, reconciliationState{})
 	}
 	return nil
 }
@@ -132,17 +127,15 @@ func reconcileProviderLeave(
 	if !found || saved.Credential.Provider == nil || (!removed && !saved.Credential.LeavePending) {
 		return false, nil
 	}
-	project, err := store.ProjectByNameIncludingArchived(ctx, projectName)
-	if err != nil {
-		return true, reconcileError(ErrLocalStorage, "read project for provider cleanup")
-	}
-	closed, err := daemon.ReleaseFederationProvider(ctx, store, managed, project.ID)
+	closed, project, err := daemon.ReleaseRemovedFederationProvider(ctx, store, managed, saved)
 	if err != nil {
 		return true, providerReconciliationError(err)
 	}
 	if removed {
-		if _, err := daemon.LeaveFederationReplica(ctx, store, managed, nil, project.ID); err != nil {
-			return true, providerReconciliationError(err)
+		if project.ID != 0 {
+			if _, err := daemon.LeaveFederationReplica(ctx, store, managed, nil, project.ID); err != nil {
+				return true, providerReconciliationError(err)
+			}
 		}
 		if err := managed.DeleteManagedFederationCredential(ctx, closed); err != nil {
 			return true, providerReconciliationError(err)

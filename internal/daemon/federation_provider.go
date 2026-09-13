@@ -179,14 +179,31 @@ func ReleaseFederationProvider(
 	if err != nil {
 		return config.FederationManagedCredentialReservation{}, err
 	}
-	previous, found, err := managed.FindManagedFederationCredential(ctx, project.Name)
+	return releaseFederationProvider(ctx, store, managed, project)
+}
+
+// ReleaseRemovedFederationProvider resolves retained identity even when the
+// project's local name changed or its unbound row was purged.
+func ReleaseRemovedFederationProvider(ctx context.Context, store db.Storage, managed config.FederationManagedCredentialStore, saved config.FederationManagedCredentialReservation) (config.FederationManagedCredentialReservation, db.Project, error) {
+	project, err := store.ProjectByUID(ctx, saved.ProjectUID)
+	if errors.Is(err, db.ErrNotFound) {
+		project = db.Project{UID: saved.ProjectUID, Name: saved.Credential.SpokeProjectName}
+	} else if err != nil {
+		return saved, project, err
+	}
+	closed, err := releaseFederationProvider(ctx, store, managed, project)
+	return closed, project, err
+}
+
+func releaseFederationProvider(ctx context.Context, store db.Storage, managed config.FederationManagedCredentialStore, project db.Project) (config.FederationManagedCredentialReservation, error) {
+	previous, found, err := config.FindProjectManagedCredential(ctx, managed, project.UID, project.Name)
 	if err != nil {
 		return previous, err
 	}
 	if !found || previous.Credential.Provider == nil {
 		return previous, ErrFederationReplicaCredentialConflict
 	}
-	prepared, err := PrepareFederationReplicaLeave(ctx, store, managed, projectID)
+	prepared, err := prepareFederationReplicaLeave(ctx, store, managed, project)
 	if err != nil {
 		return previous, err
 	}
