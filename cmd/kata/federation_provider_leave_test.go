@@ -41,7 +41,7 @@ func TestLeaveProviderProcess(_ *testing.T) {
 		if c.Provider != nil && c.Provider.RequestID == r.RequestID && c.LeavePending {
 			err := federationprovider.WriteResponse(os.Stdout, r, federationprovider.Response{
 				Version: 1, Operation: r.Operation, RequestID: r.RequestID,
-				Status: os.Getenv("KATA_TEST_LEAVE_DECISION"),
+				Status: federationprovider.Status(os.Getenv("KATA_TEST_LEAVE_DECISION")),
 			})
 			if err == nil {
 				os.Exit(0)
@@ -149,7 +149,7 @@ func TestFederationLeaveUsesProviderAndRetainsOfflineCleanup(t *testing.T) {
 	closed, found, err := credentials.FindManagedFederationCredential(t.Context(), project.Name)
 	require.NoError(t, err)
 	require.True(t, found, "retain the closed request until its config mapping is removed")
-	assert.Equal(t, "released", closed.Credential.Provider.Status)
+	assert.Equal(t, federationprovider.StatusReleased, closed.Credential.Provider.Status)
 	assert.Empty(t, closed.Credential.Token, "confirmed cleanup no longer needs the secret")
 	peerAfter, found, err := credentials.FederationCredential(t.Context(), "peer-project")
 	require.NoError(t, err)

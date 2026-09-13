@@ -120,3 +120,51 @@ func TestDecodeResponseChecksRawContractAndTarget(t *testing.T) {
 		})
 	}
 }
+
+func TestReadyGrantKeepsReadOnlyAndAllowsOptionalClaimAndExpiry(t *testing.T) {
+	for _, intent := range []string{"read_only", "collaborate", "migrate"} {
+		for _, capabilities := range []string{"pull", "pull,push", "claim,pull,push", "claim,pull", "push", "push,pull", "pull,pull,push"} {
+			t.Run(intent+"/"+capabilities, func(t *testing.T) {
+				request := authorizationRequest()
+				request.Intent = federationprovider.Intent(intent)
+				raw := strings.Replace(readyJSON, "claim,pull,push", capabilities, 1)
+				raw = strings.Replace(raw, `,"expires_at":"2030-01-01T00:00:00Z"`, "", 1)
+				response, err := federationprovider.DecodeResponse(strings.NewReader(raw), request)
+				allowed := intent == "read_only" && capabilities == "pull" || intent != "read_only" && (capabilities == "pull,push" || capabilities == "claim,pull,push")
+				if !allowed {
+					require.ErrorIs(t, err, federationprovider.ErrInvalidResponse)
+					return
+				}
+				require.NoError(t, err)
+				require.True(t, response.ExpiresAt.IsZero())
+				var out bytes.Buffer
+				require.NoError(t, federationprovider.WriteResponse(&out, request, response))
+				require.JSONEq(t, raw, out.String())
+			})
+		}
+	}
+	for _, actor := range []string{"", " ", "bootstrap", " BoOtStRaP "} {
+		raw := strings.Replace(readyJSON, "Example Operator", actor, 1)
+		_, err := federationprovider.DecodeResponse(strings.NewReader(raw), authorizationRequest())
+		require.ErrorIs(t, err, federationprovider.ErrInvalidResponse)
+	}
+}
+
+func TestReleaseAcceptsOriginalTargetContextWithoutToken(t *testing.T) {
+	raw := strings.Replace(authorizationJSON(), `"authorize"`, `"release"`, 1)
+	raw = strings.Replace(raw, `,"candidate_token":"`+authorizationRequest().CandidateToken+`"`, "", 1)
+	request, err := federationprovider.DecodeRequest(strings.NewReader(raw))
+	require.NoError(t, err)
+	require.Equal(t, "hub-project", request.Project)
+	require.Equal(t, "https://hub.example/tools/tasks", request.HubURL)
+	require.Empty(t, request.CandidateToken)
+	for _, invalid := range []string{
+		strings.Replace(raw, "https://", "http://", 1),
+		strings.Replace(raw, "hub-project", "", 1),
+		strings.Replace(raw, `"collaborate"`, `"admin"`, 1),
+		strings.TrimSuffix(raw, "}") + `,"candidate_token":""}`,
+	} {
+		_, err := federationprovider.DecodeRequest(strings.NewReader(invalid))
+		require.ErrorIs(t, err, federationprovider.ErrInvalidRequest)
+	}
+}

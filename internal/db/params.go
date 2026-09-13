@@ -3,6 +3,8 @@ package db
 import (
 	"encoding/json"
 	"time"
+
+	"go.kenn.io/kata/internal/tokenactor"
 )
 
 // IncludeDeleted controls whether a lookup is allowed to return soft-deleted
@@ -785,7 +787,7 @@ const (
 	// SystemProjectUID is the stable UID for the hidden system project.
 	SystemProjectUID = "00000000000000000000000000"
 	// BootstrapActor is the audit actor for bootstrap/admin token operations.
-	BootstrapActor = "bootstrap"
+	BootstrapActor = tokenactor.Bootstrap
 	// SystemActor identifies internal project mutations without a user initiator.
 	SystemActor = "system"
 )

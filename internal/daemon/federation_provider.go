@@ -7,6 +7,8 @@ import (
 	"strings"
 	"uuid"
 
+	"go.kenn.io/kata/internal/httpurl"
+
 	"go.kenn.io/kata/internal/config"
 	"go.kenn.io/kata/internal/db"
 	"go.kenn.io/kata/pkg/federationprovider"
@@ -32,7 +34,7 @@ func AuthorizeFederationProvider(
 		return reservation, err
 	}
 	switch reservation.Credential.Provider.Status {
-	case "ready", "denied", "conflict":
+	case federationprovider.StatusReady, federationprovider.StatusDenied, federationprovider.StatusConflict:
 		return reservation, nil
 	}
 	finish, err := BeginFederationReplicaHubOperation(ctx, store, managed, mapping.SpokeProject, reservation)
@@ -62,7 +64,7 @@ func prepareFederationProvider(
 		config.ValidateProjectName(mapping.SpokeProject) != nil || config.ValidateProjectName(mapping.HubProject) != nil {
 		return empty, ErrFederationReplicaInvalidInput
 	}
-	base, err := config.CanonicalHTTPBaseURL(catalog.URL)
+	base, err := httpurl.CanonicalHTTPBaseURL(catalog.URL)
 	if err != nil {
 		return empty, ErrFederationReplicaInvalidInput
 	}
@@ -124,7 +126,7 @@ func matchFederationProvider(
 		(reservation.ProjectUID != p.LocalProjectUID && reservation.ProjectUID != p.HubProjectUID) {
 		return reservation, ErrFederationReplicaCredentialConflict
 	}
-	if c.LeavePending || p.Status == "released" {
+	if c.LeavePending || p.Status == federationprovider.StatusReleased {
 		return reservation, ErrFederationReplicaLeavePending
 	}
 	return reservation, nil
@@ -149,7 +151,7 @@ func exchangeFederationProvider(
 	next := *p
 	next.Status = response.Status
 	replacement.Credential.Provider = &next
-	if response.Status == "ready" {
+	if response.Status == federationprovider.StatusReady {
 		response.Actor = strings.TrimSpace(response.Actor)
 		if db.ValidateTokenActor(response.Actor) != nil {
 			return reservation, federationprovider.ErrInvalidResponse
@@ -216,21 +218,23 @@ func releaseFederationProvider(ctx context.Context, store db.Storage, managed co
 	if !prepared.ManagedReservationFound || p == nil || p.RequestID != previous.Credential.Provider.RequestID {
 		return previous, ErrFederationReplicaCredentialConflict
 	}
-	if p.Status == "released" {
+	if p.Status == federationprovider.StatusReleased {
 		return reservation, nil
 	}
 	response, err := federationprovider.Exchange(ctx, p.Command, federationprovider.Request{
 		Version: 1, Operation: "release", RequestID: p.RequestID,
+		HubURL: reservation.Credential.HubURL, Project: reservation.Credential.HubProjectName,
+		SpokeInstanceUID: p.SpokeInstanceUID, LocalProjectUID: p.LocalProjectUID, Intent: p.Intent,
 	})
 	if err != nil {
 		return reservation, err
 	}
-	if response.Status != "released" {
+	if response.Status != federationprovider.StatusReleased {
 		return reservation, errors.New("federation provider release is not confirmed")
 	}
 	replacement := reservation
 	next := *p
-	next.Status = "released"
+	next.Status = federationprovider.StatusReleased
 	replacement.Credential.Provider = &next
 	replacement.Credential.Token = ""
 	if err := managed.ReplaceManagedFederationCredential(ctx, reservation, replacement); err != nil {

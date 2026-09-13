@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"go.kenn.io/kata/internal/httpurl"
+
 	"go.kenn.io/kata/internal/activity"
 	"go.kenn.io/kata/internal/config"
 	"go.kenn.io/kata/internal/daemon"
@@ -369,7 +371,7 @@ func classifyReconciliationError(err error) (string, int) {
 		return "", 0
 	}
 	if decision, ok := errors.AsType[*providerDecisionError](err); ok {
-		return decision.status, 0
+		return string(decision.status), 0
 	}
 	var hubErr *HubError
 	status := 0
@@ -663,10 +665,10 @@ func reconcilePendingLeave(
 			"pending federation leave belongs to another mapping",
 		)
 	}
-	storedBaseURL, storedBaseURLErr := config.CanonicalHTTPBaseURL(
+	storedBaseURL, storedBaseURLErr := httpurl.CanonicalHTTPBaseURL(
 		pending.Credential.HubURL,
 	)
-	catalogBaseURL, catalogBaseURLErr := config.CanonicalHTTPBaseURL(catalog.URL)
+	catalogBaseURL, catalogBaseURLErr := httpurl.CanonicalHTTPBaseURL(catalog.URL)
 	if storedBaseURLErr != nil || catalogBaseURLErr != nil ||
 		storedBaseURL != catalogBaseURL {
 		return true, reconcileError(
@@ -822,12 +824,12 @@ func preflightMapping(
 	projectEventSink func(db.Event),
 ) (mappingPreflight, error) {
 	var preflight mappingPreflight
-	hubBaseURL, err := config.CanonicalHTTPBaseURL(catalog.URL)
+	hubBaseURL, err := httpurl.CanonicalHTTPBaseURL(catalog.URL)
 	if err != nil {
 		return preflight,
 			reconcileError(ErrConfigurationConflict, "invalid federation hub endpoint")
 	}
-	allowInsecure, err := config.EffectiveHTTPAllowInsecure(catalog.URL, catalog.AllowInsecure)
+	allowInsecure, err := httpurl.EffectiveHTTPAllowInsecure(catalog.URL, catalog.AllowInsecure)
 	if err != nil {
 		return preflight,
 			reconcileError(ErrConfigurationConflict, "invalid federation hub transport policy")
@@ -1280,7 +1282,7 @@ func readCompatibleBindingBaseURL(
 		return db.FederationBinding{}, false,
 			reconcileError(ErrBindingConflict, "existing federation binding has another role")
 	}
-	existingBaseURL, err := config.CanonicalHTTPBaseURL(binding.HubURL)
+	existingBaseURL, err := httpurl.CanonicalHTTPBaseURL(binding.HubURL)
 	if err != nil || existingBaseURL != hubBaseURL {
 		return db.FederationBinding{}, false,
 			reconcileError(ErrBindingConflict, "existing federation binding targets another endpoint")
@@ -1372,8 +1374,8 @@ func credentialMatchesTarget(
 	allowInsecure bool,
 	apiCapabilities string,
 ) bool {
-	credentialBaseURL, err := config.CanonicalHTTPBaseURL(credential.HubURL)
-	credentialAllowInsecure, policyErr := config.EffectiveHTTPAllowInsecure(
+	credentialBaseURL, err := httpurl.CanonicalHTTPBaseURL(credential.HubURL)
+	credentialAllowInsecure, policyErr := httpurl.EffectiveHTTPAllowInsecure(
 		credential.HubURL, credential.AllowInsecure,
 	)
 	if err != nil || credentialBaseURL != hubBaseURL ||

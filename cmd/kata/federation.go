@@ -21,6 +21,7 @@ import (
 	"go.kenn.io/kata/internal/db"
 	hubclient "go.kenn.io/kata/internal/federation"
 	"go.kenn.io/kata/internal/textsafe"
+	"go.kenn.io/kata/pkg/federationprovider"
 )
 
 func newFederationCmd() *cobra.Command {
@@ -1801,7 +1802,7 @@ func printFederationStatus(cmd *cobra.Command, body api.FederationStatusBody) er
 		}
 		if status.ProviderStatus != "" {
 			provider := formatProviderStatus(status.ProviderStatus)
-			if status.ProviderStatus == "released" && status.Role == "spoke" {
+			if federationprovider.Status(status.ProviderStatus) == federationprovider.StatusReleased && status.Role == "spoke" {
 				provider = "released; retry federation leave to finish local teardown"
 			}
 			lines = append(lines, "provider: "+provider)
@@ -1841,14 +1842,14 @@ func printFederationStatus(cmd *cobra.Command, body api.FederationStatusBody) er
 }
 
 func formatProviderStatus(status string) string {
-	switch status {
-	case "approval_required":
+	switch federationprovider.Status(status) {
+	case federationprovider.StatusApprovalRequired:
 		return "waiting for project approval"
-	case "sign_in_required":
+	case federationprovider.StatusSignInRequired:
 		return "sign in through the configured credential provider"
 	case "cleanup_pending":
 		return "cleanup pending; retry federation leave when the provider is available"
-	case "released":
+	case federationprovider.StatusReleased:
 		return "released; remove the federation mapping from config.toml"
 	default:
 		return textsafe.Line(status)

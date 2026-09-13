@@ -4,6 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"go.kenn.io/kata/internal/httpurl"
+
+	"go.kenn.io/kata/pkg/federationprovider"
 )
 
 // FederationConfig is the [federation] block of <KATA_HOME>/config.toml.
@@ -15,12 +19,12 @@ type FederationConfig struct {
 // The named daemon catalog entry supplies the endpoint. Authentication uses
 // that catalog entry or the mapping's credential provider, never both.
 type FederationProjectConfig struct {
-	Hub                string   `toml:"hub"`
-	SpokeProject       string   `toml:"spoke_project"`
-	HubProject         string   `toml:"hub_project"`
-	Actor              string   `toml:"actor"`
-	Intent             string   `toml:"intent"`
-	CredentialProvider []string `toml:"credential_provider"`
+	Hub                string                    `toml:"hub"`
+	SpokeProject       string                    `toml:"spoke_project"`
+	HubProject         string                    `toml:"hub_project"`
+	Actor              string                    `toml:"actor"`
+	Intent             federationprovider.Intent `toml:"intent"`
+	CredentialProvider []string                  `toml:"credential_provider"`
 }
 
 // CatalogDaemon returns a copy of the named daemon catalog entry.
@@ -40,7 +44,7 @@ func trimFederationConfig(cfg *DaemonConfig) {
 		mapping.SpokeProject = strings.TrimSpace(mapping.SpokeProject)
 		mapping.HubProject = strings.TrimSpace(mapping.HubProject)
 		mapping.Actor = strings.TrimSpace(mapping.Actor)
-		mapping.Intent = strings.TrimSpace(mapping.Intent)
+		mapping.Intent = federationprovider.Intent(strings.TrimSpace(string(mapping.Intent)))
 	}
 }
 
@@ -78,7 +82,7 @@ func validateFederationConfig(cfg *DaemonConfig) error {
 		if err := ValidateFederationAuthentication(mapping, catalog); err != nil {
 			return fmt.Errorf("%s: %w", prefix, err)
 		}
-		baseURL, err := CanonicalHTTPBaseURL(catalog.URL)
+		baseURL, err := httpurl.CanonicalHTTPBaseURL(catalog.URL)
 		if err != nil {
 			return fmt.Errorf("%s.hub %q url: %w", prefix, mapping.Hub, err)
 		}
@@ -114,7 +118,7 @@ func ValidateFederationAuthentication(mapping FederationProjectConfig, catalog C
 			return errors.New("credential_provider arguments cannot contain NUL")
 		}
 	}
-	if mapping.Intent != "read_only" && mapping.Intent != "collaborate" && mapping.Intent != "migrate" {
+	if mapping.Intent != federationprovider.IntentReadOnly && mapping.Intent != federationprovider.IntentCollaborate && mapping.Intent != federationprovider.IntentMigrate {
 		return errors.New("intent must be read_only, collaborate, or migrate")
 	}
 	if mapping.Actor != "" {

@@ -47,12 +47,14 @@ func TestFederationProviderProcess(_ *testing.T) {
 			saved = credential
 		}
 	}
-	if saved.Provider == nil || (request.Operation == "authorize" &&
-		(saved.Token != request.CandidateToken || saved.Provider.LocalProjectUID != request.LocalProjectUID ||
-			saved.Provider.SpokeInstanceUID != request.SpokeInstanceUID || saved.HubProjectName != request.Project)) {
+	if saved.Provider == nil || saved.Provider.LocalProjectUID != request.LocalProjectUID ||
+		saved.Provider.SpokeInstanceUID != request.SpokeInstanceUID || saved.HubProjectName != request.Project ||
+		saved.HubURL != request.HubURL || saved.Provider.Intent != request.Intent ||
+		(request.Operation == "authorize" && saved.Token != request.CandidateToken) ||
+		(request.Operation == "release" && request.CandidateToken != "") {
 		os.Exit(2)
 	}
-	response := federationprovider.Response{Version: 1, Operation: request.Operation, RequestID: request.RequestID, Status: os.Getenv("KATA_TEST_PROVIDER_STATUS")}
+	response := federationprovider.Response{Version: 1, Operation: request.Operation, RequestID: request.RequestID, Status: federationprovider.Status(os.Getenv("KATA_TEST_PROVIDER_STATUS"))}
 	if response.Status == "ready" {
 		response.HubURL = request.HubURL
 		response.ProjectID = 42
@@ -126,7 +128,7 @@ func TestFederationProviderPersistsBeforeContactAndResumes(t *testing.T) {
 	pending, err := daemon.AuthorizeFederationProvider(t.Context(), store, credentials, catalog, mapping)
 	require.NoError(t, err)
 	require.NotNil(t, pending.Credential.Provider)
-	assert.Equal(t, "approval_required", pending.Credential.Provider.Status)
+	assert.Equal(t, federationprovider.StatusApprovalRequired, pending.Credential.Provider.Status)
 	assert.Equal(t, project.UID, pending.ProjectUID)
 	assert.Empty(t, pending.Credential.Actor)
 	assert.Zero(t, pending.Credential.HubProjectID)
@@ -140,7 +142,7 @@ func TestFederationProviderPersistsBeforeContactAndResumes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, pending.Credential.Provider.RequestID, ready.Credential.Provider.RequestID)
 	assert.True(t, pending.Credential.Token == ready.Credential.Token, "the saved token must not change")
-	assert.Equal(t, "ready", ready.Credential.Provider.Status)
+	assert.Equal(t, federationprovider.StatusReady, ready.Credential.Provider.Status)
 	assert.Equal(t, int64(42), ready.Credential.HubProjectID)
 	assert.Equal(t, int64(7), ready.Credential.Provider.EnrollmentID)
 	assert.Equal(t, "2030-01-01T00:00:00Z", ready.Credential.Provider.ExpiresAt.Format(time.RFC3339))
@@ -187,7 +189,7 @@ func TestFederationProviderPersistsBeforeContactAndResumes(t *testing.T) {
 	t.Setenv("KATA_TEST_PROVIDER_STATUS", "released")
 	released, err := daemon.ReleaseFederationProvider(t.Context(), store, credentials, project.ID)
 	require.NoError(t, err)
-	assert.Equal(t, "released", released.Credential.Provider.Status)
+	assert.Equal(t, federationprovider.StatusReleased, released.Credential.Provider.Status)
 	assert.Equal(t, pending.Credential.Provider.RequestID, released.Credential.Provider.RequestID)
 	_, err = store.ProjectByID(t.Context(), project.ID)
 	require.NoError(t, err, "releasing authority does not delete local tasks")
@@ -201,7 +203,7 @@ func TestFederationProviderPersistsBeforeContactAndResumes(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, found, "closed request prevents a still-configured mapping reopening after restart")
 	assert.Empty(t, closed.Credential.Token)
-	assert.Equal(t, "released", closed.Credential.Provider.Status)
+	assert.Equal(t, federationprovider.StatusReleased, closed.Credential.Provider.Status)
 }
 
 func TestFederationProviderKeepsFailedAndDeniedRequests(t *testing.T) {
@@ -215,7 +217,7 @@ func TestFederationProviderKeepsFailedAndDeniedRequests(t *testing.T) {
 			t.Setenv("KATA_TEST_PROVIDER_STATUS", status)
 			_, err = daemon.AuthorizeFederationProvider(t.Context(), store, credentials, catalog, mapping)
 			if status == "invalid-output" {
-				require.ErrorIs(t, err, federationprovider.ErrProviderFailed)
+				require.ErrorIs(t, err, federationprovider.ErrInvalidRequest)
 			} else {
 				require.NoError(t, err)
 			}
@@ -228,9 +230,9 @@ func TestFederationProviderKeepsFailedAndDeniedRequests(t *testing.T) {
 			assert.Equal(t, before.Credential.Provider.RequestID, after.Credential.Provider.RequestID)
 			assert.True(t, before.Credential.Token == after.Credential.Token)
 			if status == "denied" || status == "conflict" {
-				assert.Equal(t, status, after.Credential.Provider.Status, "terminal decisions must not restart issuance")
+				assert.Equal(t, federationprovider.Status(status), after.Credential.Provider.Status, "terminal decisions must not restart issuance")
 			} else {
-				assert.Equal(t, "ready", after.Credential.Provider.Status)
+				assert.Equal(t, federationprovider.StatusReady, after.Credential.Provider.Status)
 			}
 		})
 	}
@@ -263,7 +265,7 @@ func TestFederationProviderValidatesActorBeforeSavingReady(t *testing.T) {
 	t.Setenv("KATA_TEST_PROVIDER_STATUS", "ready")
 	t.Setenv("KATA_TEST_PROVIDER_ACTOR", " BOOTSTRAP ")
 	_, err = daemon.AuthorizeFederationProvider(t.Context(), store, credentials, catalog, mapping)
-	require.ErrorIs(t, err, federationprovider.ErrInvalidResponse)
+	require.ErrorIs(t, err, federationprovider.ErrInvalidRequest)
 	pending, found, err := credentials.FindManagedFederationCredential(t.Context(), mapping.SpokeProject)
 	require.NoError(t, err)
 	require.True(t, found)

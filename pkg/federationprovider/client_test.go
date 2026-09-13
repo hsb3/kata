@@ -29,7 +29,7 @@ func TestExchangeDeliversSavedRequest(t *testing.T) {
 	for range 2 {
 		response, err := federationprovider.Exchange(t.Context(), command, authorizationRequest())
 		require.NoError(t, err)
-		require.Equal(t, "ready", response.Status)
+		require.Equal(t, federationprovider.StatusReady, response.Status)
 		require.Equal(t, int64(7), response.ProjectID)
 		require.Equal(t, int64(9), response.EnrollmentID)
 		require.Equal(t, "claim,pull,push", response.Capabilities)
@@ -51,7 +51,7 @@ func TestExchangeDomainResults(t *testing.T) {
 					return
 				}
 				require.NoError(t, err)
-				require.Equal(t, status, response.Status)
+				require.Equal(t, federationprovider.Status(status), response.Status)
 			})
 		}
 	}
@@ -67,7 +67,6 @@ func TestExchangeRejectsUnusableResults(t *testing.T) {
 		"display capability":          strings.Replace(readyJSON, "claim,pull,push", "lease,pull,push", 1),
 		"reordered capabilities":      strings.Replace(readyJSON, "claim,pull,push", "pull,push,claim", 1),
 		"downgraded permission":       strings.Replace(readyJSON, "claim,pull,push", "pull", 1),
-		"missing expiry":              strings.Replace(readyJSON, `,"expires_at":"2030-01-01T00:00:00Z"`, "", 1),
 		"null expiry":                 strings.Replace(readyJSON, `"2030-01-01T00:00:00Z"`, "null", 1),
 		"non UTC expiry":              strings.Replace(readyJSON, "2030-01-01T00:00:00Z", "2030-01-01T01:00:00+01:00", 1),
 		"missing actor":               strings.Replace(readyJSON, `,"actor":"Example Operator"`, "", 1),
@@ -107,7 +106,11 @@ func TestExchangeNonzeroExitDiscardsEvenCompleteResult(t *testing.T) {
 	for _, mode := range []string{"exit-one", "exit-two"} {
 		t.Run(mode, func(t *testing.T) {
 			response, err := federationprovider.Exchange(t.Context(), providerCommand(t, mode), authorizationRequest())
-			require.ErrorIs(t, err, federationprovider.ErrProviderFailed)
+			if mode == "exit-two" {
+				require.ErrorIs(t, err, federationprovider.ErrInvalidRequest)
+			} else {
+				require.ErrorIs(t, err, federationprovider.ErrProviderFailed)
+			}
 			require.Zero(t, response)
 			if strings.Contains(err.Error(), authorizationRequest().CandidateToken) {
 				t.Fatal("provider error contains credential from child diagnostics")

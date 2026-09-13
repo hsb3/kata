@@ -10,12 +10,15 @@ import (
 	"go.kenn.io/kata/internal/config"
 	"go.kenn.io/kata/internal/daemon"
 	"go.kenn.io/kata/internal/db"
+	"go.kenn.io/kata/pkg/federationprovider"
 )
 
 // status comes only from a validated provider response, never its prose.
-type providerDecisionError struct{ status string }
+type providerDecisionError struct{ status federationprovider.Status }
 
-func (e *providerDecisionError) Error() string { return "federation credential provider: " + e.status }
+func (e *providerDecisionError) Error() string {
+	return "federation credential provider: " + string(e.status)
+}
 
 func reconcileProviderMapping(
 	ctx context.Context, store db.Storage, credentials config.FederationCredentialStore,
@@ -47,7 +50,7 @@ func reconcileProviderMapping(
 	}
 	credential := reservation.Credential
 	decision := credential.Provider
-	if decision.Status != "ready" {
+	if decision.Status != federationprovider.StatusReady {
 		return &providerDecisionError{status: decision.Status}
 	}
 	finish, err := daemon.BeginFederationReplicaHubOperation(ctx, store, credentials, mapping.SpokeProject, reservation)
@@ -74,7 +77,7 @@ func reconcileProviderMapping(
 		HubURL: credential.HubURL, HubProjectID: credential.HubProjectID, HubProjectUID: decision.HubProjectUID,
 		ProjectName: mapping.SpokeProject, ReplayHorizonEventID: metadata.ReplayHorizonEventID,
 		Credential: credential, PushEnabled: slices.Contains(strings.Split(credential.Capabilities, ","), "push"),
-		AdoptExisting: decision.Intent == "migrate", AttachEmpty: decision.Intent != "migrate",
+		AdoptExisting: decision.Intent == federationprovider.IntentMigrate, AttachEmpty: decision.Intent != federationprovider.IntentMigrate,
 		ManagedReservation: &daemon.FederationReplicaManagedReservation{ProjectUID: reservation.ProjectUID, Expected: credential},
 		ProjectEventSink:   projectEventSink,
 	}
@@ -148,6 +151,8 @@ func providerReconciliationError(err error) error {
 	switch {
 	case err == nil:
 		return nil
+	case errors.Is(err, federationprovider.ErrInvalidRequest):
+		return reconcileError(ErrConfigurationConflict, "federation provider rejected its input; check the helper command and protocol version")
 	case errors.Is(err, config.ErrFederationCredentialConflict), errors.Is(err, daemon.ErrFederationReplicaCredentialConflict):
 		return reconcileError(ErrConfigurationConflict, "federation provider operation conflicts with local state")
 	case errors.Is(err, db.ErrFederationProjectNotEmpty), errors.Is(err, daemon.ErrFederationReplicaBindingConflict):

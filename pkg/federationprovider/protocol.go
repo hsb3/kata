@@ -27,8 +27,32 @@ const MaxDocumentBytes = 16 * 1024
 // hold a reconciliation attempt indefinitely. Retry belongs to the caller.
 const AttemptTimeout = 60 * time.Second
 
+// Intent describes how the local project will use its hub.
+type Intent string
+
+// Supported intents distinguish read-only, write, and existing-data adoption.
+const (
+	IntentReadOnly    Intent = "read_only"
+	IntentCollaborate Intent = "collaborate"
+	IntentMigrate     Intent = "migrate"
+)
+
+// Status is a provider decision, not a process exit code.
+type Status string
+
+// Provider decisions describe access or cleanup for the retained request.
+const (
+	StatusReady            Status = "ready"
+	StatusApprovalRequired Status = "approval_required"
+	StatusSignInRequired   Status = "sign_in_required"
+	StatusDenied           Status = "denied"
+	StatusConflict         Status = "conflict"
+	StatusUnavailable      Status = "unavailable"
+	StatusReleased         Status = "released"
+)
+
 var (
-	// ErrInvalidRequest indicates unsupported or malformed input. No helper is run.
+	// ErrInvalidRequest indicates malformed input or a helper's exit code 2.
 	ErrInvalidRequest = errors.New("invalid federation provider request")
 	// ErrInvalidResponse indicates output that cannot authorize the request.
 	ErrInvalidResponse = errors.New("invalid federation provider response")
@@ -36,9 +60,10 @@ var (
 	ErrProviderFailed = errors.New("federation credential provider failed")
 )
 
-// Request identifies a retained authorization attempt. Release uses only
-// Version, Operation and RequestID. CandidateToken must be saved by the caller
-// before authorize and reused unchanged on retries.
+// Request identifies a retained authorization attempt. Release may repeat the
+// original target fields, but never CandidateToken. That context identifies the
+// saved request; it cannot select a different enrollment to revoke. The caller
+// saves CandidateToken before authorize and reuses it unchanged on retries.
 type Request struct {
 	Version          int       `json:"version"`
 	Operation        string    `json:"operation"`
@@ -47,7 +72,7 @@ type Request struct {
 	Project          string    `json:"project,omitempty"`
 	SpokeInstanceUID string    `json:"spoke_instance_uid,omitempty"`
 	LocalProjectUID  string    `json:"local_project_uid,omitempty"`
-	Intent           string    `json:"intent,omitempty"`
+	Intent           Intent    `json:"intent,omitempty"`
 	CandidateToken   string    `json:"candidate_token,omitempty"`
 }
 
@@ -58,7 +83,7 @@ type Response struct {
 	Version      int       `json:"version"`
 	Operation    string    `json:"operation"`
 	RequestID    uuid.UUID `json:"request_id"`
-	Status       string    `json:"status"`
+	Status       Status    `json:"status"`
 	Message      string    `json:"message,omitempty"`
 	HubURL       string    `json:"hub_url,omitempty"`
 	ProjectID    int64     `json:"project_id,omitzero"`

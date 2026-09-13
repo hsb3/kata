@@ -9,14 +9,15 @@ import (
 	"strings"
 	"uuid"
 
-	"go.kenn.io/kata/internal/config"
+	"go.kenn.io/kata/internal/httpurl"
+	"go.kenn.io/kata/internal/tokenactor"
 	"go.kenn.io/kata/internal/uid"
 )
 
 var canonicalUUID = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 var authorizationFields = []string{"hub_url", "project", "spoke_instance_uid", "local_project_uid", "intent", "candidate_token"}
-var readyFields = []string{"hub_url", "project_id", "project_uid", "enrollment_id", "actor", "capabilities", "expires_at"}
+var readyFields = []string{"hub_url", "project_id", "project_uid", "enrollment_id", "actor", "capabilities"}
 
 // The typed decoder rejects unknown and duplicate fields. The raw field map
 // also distinguishes absent fields from null/zero fields forbidden in a status.
@@ -53,8 +54,21 @@ func fieldsPresent(fields map[string]jsontext.Value, names []string, want bool) 
 func decodeRequest(data []byte) (Request, error) {
 	var request Request
 	fields, ok := decodeDocument(data, &request)
-	if !ok || !validRequest(request) || !fieldsPresent(fields, authorizationFields, request.Operation == "authorize") {
+	if !ok || !validRequest(request) {
 		return Request{}, ErrInvalidRequest
+	}
+	if request.Operation == "authorize" && !fieldsPresent(fields, authorizationFields, true) {
+		return Request{}, ErrInvalidRequest
+	}
+	if request.Operation == "release" {
+		if _, present := fields["candidate_token"]; present {
+			return Request{}, ErrInvalidRequest
+		}
+		for _, name := range authorizationFields[:len(authorizationFields)-1] {
+			if value, present := fields[name]; present && bytes.Equal(value, []byte(`""`)) {
+				return Request{}, ErrInvalidRequest
+			}
+		}
 	}
 	return request, nil
 }
@@ -64,12 +78,18 @@ func validRequest(request Request) bool {
 		return false
 	}
 	if request.Operation == "release" {
-		return request.HubURL == "" && request.Project == "" && request.SpokeInstanceUID == "" && request.LocalProjectUID == "" && request.Intent == "" && request.CandidateToken == ""
+		_, validBase := httpsBase(request.HubURL)
+		return request.CandidateToken == "" &&
+			(request.HubURL == "" || validBase) &&
+			(request.Project == "" || strings.TrimSpace(request.Project) != "") &&
+			(request.SpokeInstanceUID == "" || validUID(request.SpokeInstanceUID)) &&
+			(request.LocalProjectUID == "" || validUID(request.LocalProjectUID)) &&
+			(request.Intent == "" || validIntent(request.Intent))
 	}
 	if request.Operation != "authorize" || strings.TrimSpace(request.Project) == "" || !validUID(request.SpokeInstanceUID) || !validUID(request.LocalProjectUID) {
 		return false
 	}
-	if _, ok := httpsBase(request.HubURL); !ok || capabilitiesFor(request.Intent) == "" {
+	if _, ok := httpsBase(request.HubURL); !ok || !validIntent(request.Intent) {
 		return false
 	}
 	token, err := base64.RawURLEncoding.Strict().DecodeString(request.CandidateToken)
@@ -82,21 +102,26 @@ func decodeResponse(data []byte, request Request) (Response, error) {
 	if !ok || response.Version != 1 || response.Operation != request.Operation || response.RequestID != request.RequestID {
 		return Response{}, ErrInvalidResponse
 	}
-	if !fieldsPresent(fields, readyFields, response.Status == "ready") {
+	if !fieldsPresent(fields, readyFields, response.Status == StatusReady) {
 		return Response{}, ErrInvalidResponse
 	}
+	if expiry, present := fields["expires_at"]; present {
+		var value string
+		if response.Status != StatusReady || response.ExpiresAt.IsZero() || json.Unmarshal(expiry, &value) != nil || !strings.HasSuffix(value, "Z") {
+			return Response{}, ErrInvalidResponse
+		}
+	}
 	switch response.Status {
-	case "released", "conflict", "denied", "unavailable":
+	case StatusReleased, StatusConflict, StatusDenied, StatusUnavailable:
 		return response, nil
-	case "approval_required", "sign_in_required":
+	case StatusApprovalRequired, StatusSignInRequired:
 		if request.Operation == "authorize" {
 			return response, nil
 		}
-	case "ready":
+	case StatusReady:
 		base, validBase := httpsBase(response.HubURL)
 		expectedBase, _ := httpsBase(request.HubURL)
-		var expiry string
-		if request.Operation != "authorize" || !validBase || base != expectedBase || response.ProjectID <= 0 || response.EnrollmentID <= 0 || !validUID(response.ProjectUID) || strings.TrimSpace(response.Actor) == "" || response.Capabilities != capabilitiesFor(request.Intent) || response.ExpiresAt.IsZero() || json.Unmarshal(fields["expires_at"], &expiry) != nil || !strings.HasSuffix(expiry, "Z") {
+		if request.Operation != "authorize" || !validBase || base != expectedBase || response.ProjectID <= 0 || response.EnrollmentID <= 0 || !validUID(response.ProjectUID) || tokenactor.Validate(response.Actor) != nil || !validCapabilities(request.Intent, response.Capabilities) {
 			return Response{}, ErrInvalidResponse
 		}
 		response.HubURL = base
@@ -105,15 +130,20 @@ func decodeResponse(data []byte, request Request) (Response, error) {
 	return Response{}, ErrInvalidResponse
 }
 
-func capabilitiesFor(intent string) string {
+func validIntent(intent Intent) bool {
 	switch intent {
-	case "read_only":
-		return "pull"
-	case "collaborate", "migrate":
-		return "claim,pull,push"
+	case IntentReadOnly, IntentCollaborate, IntentMigrate:
+		return true
 	default:
-		return ""
+		return false
 	}
+}
+
+func validCapabilities(intent Intent, capabilities string) bool {
+	if intent == IntentReadOnly {
+		return capabilities == "pull"
+	}
+	return capabilities == "pull,push" || capabilities == "claim,pull,push"
 }
 
 func validUID(value string) bool {
@@ -121,6 +151,6 @@ func validUID(value string) bool {
 }
 
 func httpsBase(value string) (string, bool) {
-	base, err := config.CanonicalHTTPBaseURL(value)
+	base, err := httpurl.CanonicalHTTPBaseURL(value)
 	return base, err == nil && strings.HasPrefix(base, "https://")
 }

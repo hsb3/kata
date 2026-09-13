@@ -80,17 +80,23 @@ func TestReconcileProviderProcess(_ *testing.T) {
 	if err != nil {
 		os.Exit(2)
 	}
+	if os.Getenv("KATA_TEST_PROVIDER_DECISION") == "exit-two" {
+		os.Exit(2)
+	}
 	if request.Operation == "release" {
 		saved, found, err := config.FindManagedFederationCredential("spoke-project")
 		if err != nil || !found || saved.Credential.Provider == nil || !saved.Credential.LeavePending || saved.Credential.Provider.RequestID != request.RequestID {
 			os.Exit(2)
 		}
 	}
-	response := federationprovider.Response{Version: 1, Operation: request.Operation, RequestID: request.RequestID, Status: os.Getenv("KATA_TEST_PROVIDER_DECISION")}
+	response := federationprovider.Response{Version: 1, Operation: request.Operation, RequestID: request.RequestID, Status: federationprovider.Status(os.Getenv("KATA_TEST_PROVIDER_DECISION"))}
 	if response.Status == "ready" {
 		response.HubURL, response.ProjectID, response.ProjectUID = request.HubURL, 42, hubProjectUID
 		response.EnrollmentID, response.Actor = 7, "Example User"
 		response.Capabilities = "claim,pull,push"
+		if os.Getenv("KATA_TEST_PROVIDER_NO_CLAIM") == "1" {
+			response.Capabilities = "pull,push"
+		}
 		if request.Intent == "read_only" {
 			response.Capabilities = "pull"
 		}
@@ -182,10 +188,14 @@ func TestReconcileProviderUsesApprovedMetadataWithoutCatalogAdministration(t *te
 	}{
 		{name: "read_only", intent: "read_only"},
 		{name: "collaborate", intent: "collaborate"},
+		{name: "collaborate without claiming", intent: "collaborate"},
 		{name: "migrate", intent: "migrate", existingData: true},
 		{name: "collaborate refuses existing data", intent: "collaborate", existingData: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.name == "collaborate without claiming" {
+				t.Setenv("KATA_TEST_PROVIDER_NO_CLAIM", "1")
+			}
 			intent := tc.intent
 			t.Setenv("KATA_HOME", t.TempDir())
 			t.Setenv("KATA_TEST_RECONCILE_PROVIDER", "1")
@@ -203,7 +213,7 @@ func TestReconcileProviderUsesApprovedMetadataWithoutCatalogAdministration(t *te
 					w.WriteHeader(http.StatusUnauthorized)
 					return
 				}
-				assert.Equal(t, "ready", saved.Credential.Provider.Status, "ready must be durable before metadata retrieval")
+				assert.Equal(t, federationprovider.StatusReady, saved.Credential.Provider.Status, "ready must be durable before metadata retrieval")
 				assert.True(t, r.Header.Get("Authorization") == "Bearer "+saved.Credential.Token, "metadata must use the reserved federation token")
 				projectUID := hubProjectUID
 				if badMetadata {
@@ -222,7 +232,7 @@ func TestReconcileProviderUsesApprovedMetadataWithoutCatalogAdministration(t *te
 			require.NoError(t, err)
 			catalog := config.CatalogDaemonConfig{Name: "team-hub", URL: server.URL + "/tasks"}
 			mapping := config.FederationProjectConfig{
-				Hub: catalog.Name, SpokeProject: "spoke-project", HubProject: "hub-project", Intent: intent,
+				Hub: catalog.Name, SpokeProject: "spoke-project", HubProject: "hub-project", Intent: federationprovider.Intent(intent),
 				CredentialProvider: []string{executable, "-test.run=^TestReconcileProviderProcess$"},
 			}
 			hub := newFakeHub()
@@ -232,7 +242,7 @@ func TestReconcileProviderUsesApprovedMetadataWithoutCatalogAdministration(t *te
 			pending, found, err := credentials.FindManagedFederationCredential(t.Context(), mapping.SpokeProject)
 			require.NoError(t, err)
 			require.True(t, found)
-			assert.Equal(t, "approval_required", pending.Credential.Provider.Status)
+			assert.Equal(t, federationprovider.StatusApprovalRequired, pending.Credential.Provider.Status)
 			if tc.existingData {
 				local, err := store.ProjectByName(t.Context(), mapping.SpokeProject)
 				require.NoError(t, err)
@@ -287,4 +297,38 @@ func TestReconcileProviderUsesApprovedMetadataWithoutCatalogAdministration(t *te
 			assert.Empty(t, hub.rotationCalls)
 		})
 	}
+}
+
+func TestProviderInputErrorIsVisibleAndRetainsExactRequest(t *testing.T) {
+	t.Setenv("KATA_HOME", t.TempDir())
+	t.Setenv("KATA_TEST_RECONCILE_PROVIDER", "1")
+	t.Setenv("KATA_TEST_PROVIDER_DECISION", "exit-two")
+	store := openReconcileStore(t)
+	credentials := config.DefaultFederationCredentialStore()
+	executable, err := os.Executable()
+	require.NoError(t, err)
+	catalog := config.CatalogDaemonConfig{Name: "team-hub", URL: "https://hub.example/tasks"}
+	mapping := config.FederationProjectConfig{
+		Hub: catalog.Name, SpokeProject: "spoke-project", HubProject: "hub-project", Intent: "collaborate",
+		CredentialProvider: []string{executable, "-test.run=^TestReconcileProviderProcess$"},
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	r := federation.NewReconciler(federation.ReconcilerConfig{
+		Store: store, Credentials: credentials, Targets: []federation.Target{{Catalog: catalog, Mapping: mapping}},
+	})
+	done := make(chan error, 1)
+	go func() { done <- r.Run(ctx) }()
+	require.Eventually(t, func() bool { return r.Health().LastErrorCategory != "" }, 3*time.Second, 10*time.Millisecond)
+	cancel()
+	require.ErrorIs(t, <-done, context.Canceled)
+	assert.Equal(t, "configuration_conflict", r.Health().LastErrorCategory)
+	saved, found, err := credentials.FindManagedFederationCredential(t.Context(), mapping.SpokeProject)
+	require.NoError(t, err)
+	require.True(t, found)
+	t.Setenv("KATA_TEST_PROVIDER_DECISION", "approval_required")
+	retried, err := daemon.AuthorizeFederationProvider(t.Context(), store, credentials, catalog, mapping)
+	require.NoError(t, err)
+	assert.Equal(t, saved.Credential.Provider.RequestID, retried.Credential.Provider.RequestID)
+	assert.True(t, saved.Credential.Token == retried.Credential.Token)
 }

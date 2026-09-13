@@ -13,7 +13,10 @@ import (
 	"sync"
 	"time"
 
+	"go.kenn.io/kata/internal/httpurl"
+
 	"github.com/BurntSushi/toml"
+	"go.kenn.io/kata/pkg/federationprovider"
 )
 
 // FederationCredentials is the local secret-bearing credentials.toml shape.
@@ -51,8 +54,8 @@ func FederationTransportCredential(
 	allowInsecure bool,
 	credential FederationCredential,
 ) FederationCredential {
-	credentialBaseURL, credentialURLErr := CanonicalHTTPBaseURL(credential.HubURL)
-	bindingBaseURL, bindingURLErr := CanonicalHTTPBaseURL(hubURL)
+	credentialBaseURL, credentialURLErr := httpurl.CanonicalHTTPBaseURL(credential.HubURL)
+	bindingBaseURL, bindingURLErr := httpurl.CanonicalHTTPBaseURL(hubURL)
 	legacyAllowInsecure := credential.AllowInsecure &&
 		credential.HubProjectID == hubProjectID &&
 		credentialURLErr == nil && bindingURLErr == nil &&
@@ -310,6 +313,11 @@ func FederationCredentialMetadataFromStore(
 	if !ok {
 		return FederationCredentialMetadata{Status: "missing"}
 	}
+	return c.Metadata()
+}
+
+// Metadata returns status fields without exposing the token or helper command.
+func (c FederationCredential) Metadata() FederationCredentialMetadata {
 	metadata := FederationCredentialMetadata{
 		Status:           "present",
 		HubURL:           c.HubURL,
@@ -324,11 +332,11 @@ func FederationCredentialMetadataFromStore(
 		SpokeProjectName: c.SpokeProjectName,
 	}
 	if c.Provider != nil {
-		metadata.ProviderStatus = c.Provider.Status
+		metadata.ProviderStatus = string(c.Provider.Status)
 		if metadata.ProviderStatus == "" {
 			metadata.ProviderStatus = "pending"
 		}
-		if c.LeavePending && c.Provider.Status != "released" {
+		if c.LeavePending && c.Provider.Status != federationprovider.StatusReleased {
 			metadata.ProviderStatus = "cleanup_pending"
 		}
 		if !c.Provider.ExpiresAt.IsZero() {

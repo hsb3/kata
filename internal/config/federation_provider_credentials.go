@@ -4,6 +4,8 @@ import (
 	"slices"
 	"time"
 	"uuid"
+
+	"go.kenn.io/kata/pkg/federationprovider"
 )
 
 // FederationProviderCredential retains one provider operation alongside its
@@ -11,15 +13,15 @@ import (
 // the local replica adopts the hub project UID. Command is trusted local
 // configuration retained for cleanup after a mapping is removed.
 type FederationProviderCredential struct {
-	RequestID        uuid.UUID `toml:"request_id"`
-	Command          []string  `toml:"command"`
-	Intent           string    `toml:"intent"`
-	SpokeInstanceUID string    `toml:"spoke_instance_uid"`
-	LocalProjectUID  string    `toml:"local_project_uid"`
-	Status           string    `toml:"status,omitempty"`
-	HubProjectUID    string    `toml:"hub_project_uid,omitempty"`
-	EnrollmentID     int64     `toml:"enrollment_id,omitempty"`
-	ExpiresAt        time.Time `toml:"expires_at,omitempty"`
+	RequestID        uuid.UUID                 `toml:"request_id"`
+	Command          []string                  `toml:"command"`
+	Intent           federationprovider.Intent `toml:"intent"`
+	SpokeInstanceUID string                    `toml:"spoke_instance_uid"`
+	LocalProjectUID  string                    `toml:"local_project_uid"`
+	Status           federationprovider.Status `toml:"status,omitempty"`
+	HubProjectUID    string                    `toml:"hub_project_uid,omitempty"`
+	EnrollmentID     int64                     `toml:"enrollment_id,omitempty"`
+	ExpiresAt        time.Time                 `toml:"expires_at,omitempty"`
 }
 
 // Equal compares the whole retained credential by value, including optional

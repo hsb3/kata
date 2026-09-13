@@ -68,6 +68,9 @@ func Exchange(parent context.Context, command []string, request Request) (Respon
 		return Response{}, errors.Join(ErrProviderFailed, err)
 	}
 	if waitErr != nil || terminateErr != nil || closeErr != nil {
+		if exit, ok := errors.AsType[*exec.ExitError](waitErr); ok && exit.ExitCode() == 2 {
+			return Response{}, ErrInvalidRequest
+		}
 		return Response{}, ErrProviderFailed
 	}
 	return decodeResponse(output.buffer.Bytes(), request)
