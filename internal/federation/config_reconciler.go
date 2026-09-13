@@ -431,6 +431,8 @@ func (t wallTimer) Stop() bool          { return t.timer.Stop() }
 // ReconcileMapping performs one restart-safe attempt for a single normalized
 // mapping. Scheduling, retry, and health aggregation are layered on this
 // operation by the process controller.
+// Provider mappings use their configured helper and need no Hub. Other mappings
+// require a Hub with project and enrollment administration access.
 func ReconcileMapping(
 	ctx context.Context,
 	store db.Storage,
@@ -455,6 +457,13 @@ func reconcileMapping(
 ) error {
 	if mapping.CredentialProvider != nil {
 		return reconcileProviderMapping(ctx, store, credentials, catalog, mapping, wake, projectEventSink)
+	}
+	if store == nil || credentials == nil || hub == nil ||
+		mapping.Hub != catalog.Name ||
+		strings.TrimSpace(mapping.SpokeProject) == "" ||
+		strings.TrimSpace(mapping.HubProject) == "" ||
+		strings.TrimSpace(mapping.Actor) == "" {
+		return reconcileError(ErrConfigurationConflict, "invalid federation mapping dependencies")
 	}
 	managed, ok := credentials.(config.FederationManagedCredentialStore)
 	if !ok {
@@ -813,14 +822,6 @@ func preflightMapping(
 	projectEventSink func(db.Event),
 ) (mappingPreflight, error) {
 	var preflight mappingPreflight
-	if store == nil || credentials == nil || hub == nil ||
-		mapping.Hub != catalog.Name ||
-		strings.TrimSpace(mapping.SpokeProject) == "" ||
-		strings.TrimSpace(mapping.HubProject) == "" ||
-		strings.TrimSpace(mapping.Actor) == "" {
-		return preflight,
-			reconcileError(ErrConfigurationConflict, "invalid federation mapping dependencies")
-	}
 	hubBaseURL, err := config.CanonicalHTTPBaseURL(catalog.URL)
 	if err != nil {
 		return preflight,

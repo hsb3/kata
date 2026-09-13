@@ -1,7 +1,14 @@
-// Package federationprovider defines Kata's executable federation credential
-// provider protocol. Providers approve a caller-retained token; they do not
-// return a replacement token. See the federation credential providers section
-// in docs/development/embedding.md.
+// Package federationprovider lets Kata ask a local helper for access to a hub
+// project without sharing hub administration credentials.
+//
+// Kata saves a token before calling Exchange. The helper reads it with
+// DecodeRequest, checks project access, and replies with WriteResponse.
+// Approval confirms that saved token; it never replaces it. Pending approval
+// and denial are normal responses, while malformed input and helper failures
+// return errors. The caller owns storage and retries.
+//
+// Helpers that forward another service's reply use DecodeResponse to check it
+// before forwarding. See docs/development/embedding.md for the wire contract.
 package federationprovider
 
 import (

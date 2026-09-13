@@ -415,9 +415,20 @@ its own account and project permissions. The caller supplies a saved token;
 the provider authorizes that exact token for one project and installation.
 The provider does not receive a daemon administration token.
 
-**Available now:** `go.kenn.io/kata/pkg/federationprovider` provides Go wire
-types, a request reader, a response writer, and an executable client. An embedded
-host can use `Service.EnsureFederationEnrollment` to accept the saved token.
+**Development branch; not a tagged release.** The Go package
+`go.kenn.io/kata/pkg/federationprovider` handles the helper exchange. Choose the
+entry point for the code you are writing:
+
+| Your code | Entry point | Responsibility |
+| --- | --- | --- |
+| Kata caller | `Exchange` | Run the configured helper with a previously saved request. |
+| Helper | `DecodeRequest`, `WriteResponse` | Read a request, decide access, then write a checked reply. |
+| Helper forwarding another service's reply | `DecodeResponse` | Check that reply against the original request before forwarding it. |
+| Application embedding Kata | `Service.EnsureFederationEnrollment` | Register the exact saved token after approving access. |
+
+Pending approval and denial are normal responses, not Go errors. Errors mean
+the exchange could not finish or a document was invalid. Callers still own
+credential storage and retries; the package does not create either for them.
 
 The reconciler can obtain approval, read federation metadata with the approved
 token, and attach a local replica. Normal leave commands, mapping removal, and
@@ -425,7 +436,7 @@ redacted status use the same saved request. See the
 [operator guide](../operations/federation.md#external-credential-providers)
 for configuration and cleanup instructions.
 
-The daemon's internal provider controller now:
+Kata handles interrupted requests as follows:
 
 - Saves the request and candidate token before running the helper.
 - Reuses them after pending approval, a failed exchange, or restart.
