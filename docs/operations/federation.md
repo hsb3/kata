@@ -167,15 +167,18 @@ program directly, without a shell. Do not set `actor`, `token`, or `token_env`
 for this mapping; the provider supplies the approved identity and permissions.
 
 - `read_only` starts an empty local replica that can pull tasks.
-- `collaborate` starts an empty replica that can also push work and claim tasks.
-- `migrate` requests permission to import an existing project's tasks and authors.
+- `collaborate` starts an empty replica that can also push work. The hub may
+  additionally allow it to claim tasks.
+- `migrate` requests Kata's adoption workflow: import an existing project's
+  tasks and authors, then use the hub's project identity for federation.
   It is not an automatic fallback when an ordinary connection finds local data.
 
 Kata saves its candidate credential before asking the helper for approval. A
 restart retries the same request. Once approved, ordinary synchronization uses
 the saved credential directly; it does not run the helper for every task.
-The provider decides approval and expiry. Kata displays both in
-`kata federation status`, without displaying credentials or helper arguments.
+The provider decides approval and whether credentials expire. Kata displays
+approval status and any supplied expiry in `kata federation status`, without
+displaying credentials or helper arguments.
 
 To disconnect, run `kata federation leave spoke-project`. Kata stops local
 synchronization before asking the provider to release that exact connection.

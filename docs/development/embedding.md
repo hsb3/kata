@@ -440,7 +440,7 @@ Kata handles interrupted requests as follows:
 
 - Saves the request and candidate token before running the helper.
 - Reuses them after pending approval, a failed exchange, or restart.
-- Saves confirmed project, actor, permission, and expiry details before binding.
+- Saves confirmed project, actor, permission, and optional expiry details before binding.
 - Reuses a confirmed result without contacting the helper again.
 - Keeps failed releases pending and blocks further authorization for that request.
 
@@ -485,8 +485,8 @@ marker does not authorize the reconciler to guess whether to archive local data.
   comparison.
 - Release cancels or revokes exactly the saved request. Keep that request until
   the provider confirms `released`, including after a failed exchange.
-- The host enforces credential expiry. This protocol carries the expiry time;
-  it does not add expiry enforcement to standalone Kata storage.
+- A host that expires credentials supplies and enforces the expiry time.
+  Standalone Kata storage does not enforce expiry.
 
 ### Executable exchange
 
@@ -516,11 +516,16 @@ Any nonzero exit discards all stdout, even a complete `ready` response. A failed
 exchange does not prove that the host made no changes. Keep the saved request
 and token for retry or release.
 
+Exit `2` returns `ErrInvalidRequest`. Reconciliation reports
+`configuration_conflict` in health so the operator can check the helper command
+and protocol version. Other process failures return `ErrProviderFailed`.
+Retries never replace or forget the saved request.
+
 ### Request fields
 
 Both operations require `version` (integer `1`), `operation`, and `request_id`.
 The UUID uses lowercase, hyphenated text and must not be nil. Kata identity
-fields use uppercase ULIDs. All string fields must be nonempty.
+fields use uppercase ULIDs. String fields must be nonempty when present.
 
 An `authorize` request also requires:
 
@@ -533,7 +538,7 @@ An `authorize` request also requires:
 | `intent` | `read_only`, `collaborate`, or `migrate`. |
 | `candidate_token` | The saved 32-byte token encoded as unpadded base64url. |
 
-A `release` request includes none of those authorize-only fields:
+A minimal `release` request needs only the shared fields:
 
 ```json
 {
@@ -542,6 +547,12 @@ A `release` request includes none of those authorize-only fields:
   "request_id": "8b60f249-b495-4f17-8999-c64382e05680"
 }
 ```
+
+Release may also repeat `hub_url`, `project`, `spoke_instance_uid`,
+`local_project_uid`, and `intent` from the saved request. These optional fields
+help the provider find that request; they never select a different project or
+enrollment to revoke. Kata sends its saved values, not values from a provider
+response. Release must not include `candidate_token`.
 
 Providers use `DecodeRequest(io.Reader)` and
 `WriteResponse(io.Writer, Request, Response)`. Clients use
@@ -558,29 +569,33 @@ Every response echoes `version`, `operation`, and `request_id`, and includes a
 | Status | Caller action |
 | --- | --- |
 | `ready` | Save the enrollment and start federation. |
-| `approval_required` | Wait for manager approval; retry the same request. |
-| `sign_in_required` | Report that account sign-in is needed. Do not substitute device authority. |
+| `approval_required` | Wait for approval on the hub; retry the same request. |
+| `sign_in_required` | Report that account sign-in is needed. Do not fall back to another credential. |
 | `denied` | Stop automatic authorization retries for this request. |
 | `conflict` | Keep state and ask for an explicit correction. |
 | `unavailable` | Keep state and retry later. |
 | `released` | Cleanup is complete; the request no longer grants access. |
 
 A release returns only `released`, `conflict`, `denied`, or `unavailable`.
-It cannot grant a connection. Only `ready` includes the following fields;
-all are required:
+It cannot grant a connection. Only `ready` includes the following fields.
+All except `expires_at` are required:
 
 | Field | Requirement |
 | --- | --- |
 | `hub_url` | Matches the requested base, including its mount. |
 | `project_id`, `enrollment_id` | Positive integers assigned by the host. |
 | `project_uid` | The destination project's uppercase ULID. |
-| `actor` | Nonempty actor name for federation. |
-| `capabilities` | `pull` for `read_only`; `claim,pull,push` for `collaborate` or `migrate`. |
-| `expires_at` | The host's expiry as UTC RFC 3339 text ending in `Z`. |
+| `actor` | Nonempty actor name; `bootstrap` is reserved, ignoring case and surrounding spaces. |
+| `capabilities` | Exactly `pull` for `read_only`; `pull,push` or `claim,pull,push` for `collaborate` or `migrate`. |
+| `expires_at` | Optional host expiry as UTC RFC 3339 text ending in `Z`. Omit it when the credential does not expire. |
 
 `claim` is the canonical wire capability. `lease` is a human-facing spelling,
 not a response value. A provider cannot silently change the requested
-permissions and report `ready`. Responses never return a token.
+permissions and report `ready`. Read-only never permits pushing. Write replicas
+need both pull and push; claiming work is optional. Responses never return a token.
+
+The Go package exports `Intent` and `Status` constants for callers and helpers.
+It shares URL and actor validation with Kata without importing daemon configuration.
 
 URL matching uses Kata's canonical HTTP base rules: normalize host case and
 the default HTTPS port, remove trailing slashes, and preserve the mount path.
