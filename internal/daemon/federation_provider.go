@@ -211,6 +211,7 @@ func ReleaseFederationProvider(
 	next := *p
 	next.Status = "released"
 	replacement.Credential.Provider = &next
+	replacement.Credential.Token = ""
 	if err := managed.ReplaceManagedFederationCredential(ctx, reservation, replacement); err != nil {
 		return reservation, err
 	}

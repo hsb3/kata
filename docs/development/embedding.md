@@ -419,10 +419,11 @@ The provider does not receive a daemon administration token.
 types, a request reader, a response writer, and an executable client. An embedded
 host can use `Service.EnsureFederationEnrollment` to accept the saved token.
 
-**In development:** the reconciler can obtain approval, read federation
-metadata with the approved token, and attach a local replica. Normal leave
-commands, mapping removal, and status still need provider integration. This is
-not yet a complete daemon setup procedure.
+The reconciler can obtain approval, read federation metadata with the approved
+token, and attach a local replica. Normal leave commands, mapping removal, and
+redacted status use the same saved request. See the
+[operator guide](../operations/federation.md#external-credential-providers)
+for configuration and cleanup instructions.
 
 The daemon's internal provider controller now:
 
@@ -443,8 +444,10 @@ when metadata retrieval or local attachment fails.
 - Attachment replaces old local catalog events when the project takes the
   hub identity. Their checksums name the old identity. One new local event
   updates browser readers without pushing empty metadata to the hub.
-- Ordinary teardown refuses to delete a provider request until release is
-  confirmed. The normal leave command does not yet drive that release.
+- Normal leave stops transport and asks the saved provider to release the
+  exact request. Unconfirmed cleanup remains pending rather than deleting its
+  credential. Once confirmed, the secret is removed; a closed marker prevents
+  the still-configured mapping from reopening after restart.
 
 Kata's credential file can retain the provider operation beside its saved
 token. It stores the request UUID, executable arguments, intent, original local
@@ -452,8 +455,12 @@ project and installation identifiers, and any accepted enrollment and expiry.
 Moving a credential to the hub project UID preserves the original request.
 Updates and cleanup compare the whole saved operation by value, so rereading
 the file does not break a retry and stale cleanup cannot delete a newer request.
-The executable arguments remain available for release after a mapping is removed;
-the reconciler does not perform that release yet.
+The executable arguments remain available for release after a mapping is removed.
+On restart, the reconciler releases removed provider mappings, detaches their
+local replicas, and removes their closed markers. Other credentials are untouched.
+If an explicit leave was interrupted, restart can finish remote release, but the
+user retries the original leave command to finish local teardown. The saved
+marker does not authorize the reconciler to guess whether to archive local data.
 
 ### Responsibilities
 

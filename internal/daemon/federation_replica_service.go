@@ -9,6 +9,7 @@ import (
 
 	"go.kenn.io/kata/internal/config"
 	"go.kenn.io/kata/internal/db"
+	"go.kenn.io/kata/internal/federationcoord"
 	katauid "go.kenn.io/kata/internal/uid"
 )
 
@@ -280,6 +281,11 @@ func PrepareFederationReplicaLeave(
 					"read prepared managed reservation",
 				)
 			}
+			if found && match.Credential.Provider != nil {
+				if err := stopProviderFederationTransport(ctx, store, projectID); err != nil {
+					return PrepareFederationReplicaLeaveResult{}, err
+				}
+			}
 			return PrepareFederationReplicaLeaveResult{
 				ManagedReservation:      match,
 				ManagedReservationFound: found,
@@ -292,6 +298,33 @@ func PrepareFederationReplicaLeave(
 		case <-drained:
 		}
 	}
+}
+
+// LeavePending blocks attachment first. Drain the existing project transport
+// gate before disabling the binding, so sync and claim forwarding stay stopped
+// across restarts even while the credential provider is unavailable.
+func stopProviderFederationTransport(ctx context.Context, store db.Storage, projectID int64) error {
+	finish, err := federationcoord.BeginRebind(ctx, federationcoord.Key(store.InstanceUID(), projectID), store, projectID)
+	if err != nil {
+		return err
+	}
+	defer finish()
+	binding, err := store.FederationBindingByProject(ctx, projectID)
+	if errors.Is(err, db.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if binding.Role != db.FederationRoleSpoke {
+		return db.ErrFederationNotSpoke
+	}
+	if !binding.Enabled {
+		return nil
+	}
+	binding.Enabled = false
+	_, err = store.UpsertFederationBinding(ctx, binding)
+	return err
 }
 
 // RecordFederationReplicaPendingEnrollment stamps a completed hub enrollment
@@ -434,13 +467,17 @@ func leaveFederationReplicaState(
 		return db.LeaveFederationResult{}, err
 	}
 	if managedReservationFound {
-		if err := managed.DeleteManagedFederationCredential(ctx, match); err != nil {
-			if errors.Is(err, config.ErrFederationCredentialConflict) {
-				return db.LeaveFederationResult{}, err
+		// Keep a released, secret-free provider reservation until configuration
+		// removal, so restarting cannot reopen a still-configured mapping.
+		if match.Credential.Provider == nil {
+			if err := managed.DeleteManagedFederationCredential(ctx, match); err != nil {
+				if errors.Is(err, config.ErrFederationCredentialConflict) {
+					return db.LeaveFederationResult{}, err
+				}
+				return db.LeaveFederationResult{}, credentialIOError(
+					"delete managed reservation after leave",
+				)
 			}
-			return db.LeaveFederationResult{}, credentialIOError(
-				"delete managed reservation after leave",
-			)
 		}
 	} else if result.ProjectUID != "" {
 		if err := credentials.DeleteFederationCredential(ctx, result.ProjectUID); err != nil {

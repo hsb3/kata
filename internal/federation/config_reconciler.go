@@ -57,8 +57,9 @@ type Clock interface {
 // Target binds one normalized project mapping to its selected daemon catalog
 // entry. Authentication remains scoped to that one catalog entry.
 type Target struct {
-	Catalog config.CatalogDaemonConfig
-	Mapping config.FederationProjectConfig
+	Catalog        config.CatalogDaemonConfig
+	Mapping        config.FederationProjectConfig
+	removeProvider bool
 }
 
 // HubFactory constructs an origin-pinned hub client for one attempt.
@@ -116,8 +117,9 @@ type Reconciler struct {
 	drainAdmission       activity.WaitableAdmission
 	logger               *log.Logger
 
-	mu     sync.Mutex
-	states []reconciliationState
+	mu           sync.Mutex
+	states       []reconciliationState
+	startupError error
 }
 
 // NewReconciler constructs a process-local federation configuration
@@ -145,6 +147,12 @@ func NewReconciler(cfg ReconcilerConfig) *Reconciler {
 
 // Run attempts due mappings in configuration order until ctx is cancelled.
 func (r *Reconciler) Run(ctx context.Context) error {
+	if err := r.findRemovedProviderMappings(ctx); err != nil {
+		r.mu.Lock()
+		r.startupError = err
+		r.mu.Unlock()
+		return err
+	}
 	for {
 		now := r.clock.Now()
 		attempted := false
@@ -218,6 +226,11 @@ func (r *Reconciler) Health() Health {
 	defer r.mu.Unlock()
 
 	health := Health{Configured: len(r.states)}
+	if r.startupError != nil {
+		health.Pending = max(1, len(r.states))
+		health.LastErrorCategory, health.LastErrorStatus = classifyReconciliationError(r.startupError)
+		return health
+	}
 	var lastErrorAt time.Time
 	for i := range r.states {
 		state := &r.states[i]
@@ -242,6 +255,13 @@ func (r *Reconciler) Health() Health {
 }
 
 func (r *Reconciler) reconcile(ctx context.Context, target Target, drain *activity.Lease) error {
+	if target.removeProvider {
+		_, err := reconcileProviderLeave(ctx, r.store, r.credentials, target.Mapping.SpokeProject, true)
+		if err == nil && r.wake != nil {
+			r.wake()
+		}
+		return err
+	}
 	var hub Hub
 	if target.Mapping.CredentialProvider == nil {
 		if r.hubFactory == nil {

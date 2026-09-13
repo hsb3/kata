@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -496,10 +497,11 @@ func registerFederationHandlers(humaAPI huma.API, cfg ServerConfig) {
 					return nil, internalAPIError(findErr)
 				case found:
 					body.PendingEnrollment = &api.PendingFederationEnrollmentCleanup{
-						HubURL:        match.Credential.HubURL,
-						HubProjectID:  match.Credential.HubProjectID,
-						HubProjectUID: match.ProjectUID,
-						AllowInsecure: match.Credential.AllowInsecure,
+						ProviderManaged: match.Credential.Provider != nil,
+						HubURL:          match.Credential.HubURL,
+						HubProjectID:    match.Credential.HubProjectID,
+						HubProjectUID:   match.ProjectUID,
+						AllowInsecure:   match.Credential.AllowInsecure,
 					}
 				}
 			}
@@ -541,6 +543,26 @@ func registerFederationHandlers(humaAPI huma.API, cfg ServerConfig) {
 			}
 		}
 
+		if managed, ok := cfg.federationCredentialStore().(config.FederationManagedCredentialStore); ok {
+			project, err := cfg.DB.ProjectByID(ctx, in.ProjectID)
+			if errors.Is(err, db.ErrNotFound) {
+				return nil, api.NewError(http.StatusNotFound, "project_not_found", "project not found", "", nil)
+			}
+			if err != nil {
+				return nil, internalAPIError(err)
+			}
+			match, found, err := managed.FindManagedFederationCredential(ctx, project.Name)
+			if err != nil {
+				return nil, internalAPIError(err)
+			}
+			if found && match.Credential.Provider != nil {
+				if _, err := ReleaseFederationProvider(ctx, cfg.DB, managed, in.ProjectID); err != nil {
+					return nil, api.NewError(http.StatusServiceUnavailable, "federation_cleanup_pending",
+						"provider connection cleanup is pending",
+						"retry kata federation leave when the credential provider is available; the saved request is retained", nil)
+				}
+			}
+		}
 		res, err := LeaveFederationReplica(
 			ctx,
 			cfg.DB,
@@ -873,6 +895,33 @@ func federationStatusBody(
 		}
 		out.Statuses = append(out.Statuses, status)
 	}
+	// A provider request can be waiting for approval before a binding exists,
+	// or retained after leave. Both must remain visible in ordinary status.
+	if managed, ok := credentialStore.(config.FederationManagedCredentialStore); ok {
+		projects, err := store.ListProjectsIncludingArchived(ctx)
+		if err != nil {
+			return api.FederationStatusBody{}, internalAPIError(err)
+		}
+		for _, project := range projects {
+			if (projectID != nil && project.ID != *projectID) || (!includeArchived && project.DeletedAt != nil) ||
+				slices.ContainsFunc(bindings, func(b db.FederationBinding) bool { return b.ProjectID == project.ID }) {
+				continue
+			}
+			saved, found, err := managed.FindManagedFederationCredential(ctx, project.Name)
+			if err != nil {
+				return api.FederationStatusBody{}, internalAPIError(err)
+			}
+			if !found || saved.Credential.Provider == nil {
+				continue
+			}
+			metadata := config.FederationCredentialMetadataFromStore(ctx, credentialStore, saved.ProjectUID)
+			out.Statuses = append(out.Statuses, api.FederationProjectStatus{
+				ProjectID: project.ID, ProjectUID: project.UID, ProjectName: project.Name, Role: "standalone",
+				HubURL: metadata.HubURL, HubProjectID: metadata.HubProjectID,
+				CredentialStatus: metadata.Status, ProviderStatus: metadata.ProviderStatus, CredentialExpiresAt: metadata.ExpiresAt,
+			})
+		}
+	}
 	return out, nil
 }
 
@@ -985,6 +1034,8 @@ func federationProjectStatus(
 		// keeps bindings recorded before allow_insecure was persisted working.
 		AllowInsecure:               binding.AllowInsecure || credentialAllowInsecure,
 		CredentialStatus:            credentialMetadata.Status,
+		ProviderStatus:              credentialMetadata.ProviderStatus,
+		CredentialExpiresAt:         credentialMetadata.ExpiresAt,
 		PullCursorEventID:           binding.PullCursorEventID,
 		PushCursorEventID:           binding.PushCursorEventID,
 		PendingPushCount:            pendingPush,

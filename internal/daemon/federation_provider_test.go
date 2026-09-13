@@ -197,9 +197,11 @@ func TestFederationProviderPersistsBeforeContactAndResumes(t *testing.T) {
 	assert.True(t, peer.Equal(peerAfter), "releasing one request must not change another credential")
 	_, err = daemon.LeaveFederationReplica(t.Context(), store, credentials, nil, project.ID)
 	require.NoError(t, err)
-	_, found, err = credentials.FindManagedFederationCredential(t.Context(), mapping.SpokeProject)
+	closed, found, err := credentials.FindManagedFederationCredential(t.Context(), mapping.SpokeProject)
 	require.NoError(t, err)
-	assert.False(t, found, "confirmed release permits exact local cleanup")
+	require.True(t, found, "closed request prevents a still-configured mapping reopening after restart")
+	assert.Empty(t, closed.Credential.Token)
+	assert.Equal(t, "released", closed.Credential.Provider.Status)
 }
 
 func TestFederationProviderKeepsFailedAndDeniedRequests(t *testing.T) {

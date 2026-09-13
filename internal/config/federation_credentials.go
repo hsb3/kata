@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
@@ -66,6 +67,8 @@ func FederationTransportCredential(
 // FederationCredentialMetadata is the redacted credential information safe
 // to expose in daemon status responses.
 type FederationCredentialMetadata struct {
+	ProviderStatus   string
+	ExpiresAt        *time.Time
 	Status           string
 	HubURL           string
 	HubProjectID     int64
@@ -270,7 +273,7 @@ func FederationCredentialMetadataFromStore(
 	if !ok {
 		return FederationCredentialMetadata{Status: "missing"}
 	}
-	return FederationCredentialMetadata{
+	metadata := FederationCredentialMetadata{
 		Status:           "present",
 		HubURL:           c.HubURL,
 		HubProjectID:     c.HubProjectID,
@@ -283,6 +286,19 @@ func FederationCredentialMetadataFromStore(
 		RequestedActor:   c.RequestedActor,
 		SpokeProjectName: c.SpokeProjectName,
 	}
+	if c.Provider != nil {
+		metadata.ProviderStatus = c.Provider.Status
+		if metadata.ProviderStatus == "" {
+			metadata.ProviderStatus = "pending"
+		}
+		if c.LeavePending && c.Provider.Status != "released" {
+			metadata.ProviderStatus = "cleanup_pending"
+		}
+		if !c.Provider.ExpiresAt.IsZero() {
+			metadata.ExpiresAt = &c.Provider.ExpiresAt
+		}
+	}
+	return metadata
 }
 
 // DeleteFederationCredential removes one project credential from
