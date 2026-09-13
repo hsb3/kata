@@ -182,7 +182,16 @@ func FindProjectManagedCredential(ctx context.Context, store FederationManagedCr
 	if found && credential.ManagedByConfig && credential.Provider != nil {
 		return FederationManagedCredentialReservation{ProjectUID: projectUID, Credential: credential}, true, nil
 	}
-	return store.FindManagedFederationCredential(ctx, projectName)
+	match, found, err := store.FindManagedFederationCredential(ctx, projectName)
+	if err != nil || !found {
+		return FederationManagedCredentialReservation{}, false, err
+	}
+	// Attachment moves the credential to the hub UID before changing the
+	// local project. Only that retained original UID may use the name match.
+	if match.Credential.Provider != nil && match.Credential.Provider.LocalProjectUID != projectUID {
+		return FederationManagedCredentialReservation{}, false, nil
+	}
+	return match, true, nil
 }
 
 func (homeFederationCredentialStore) FederationCredential(

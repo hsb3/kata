@@ -28,6 +28,31 @@ func providerReservation() config.FederationManagedCredentialReservation {
 	}
 }
 
+func TestProviderLookupDoesNotFollowAReusedProjectName(t *testing.T) {
+	t.Setenv("KATA_HOME", t.TempDir())
+	store := config.DefaultFederationCredentialStore()
+	saved := providerReservation()
+	require.NoError(t, store.ReserveManagedFederationCredential(t.Context(), saved))
+
+	// The original project's UID stays the same after a rename. A different
+	// project may then take its old name, but not its provider connection.
+	match, found, err := config.FindProjectManagedCredential(t.Context(), store, saved.ProjectUID, "renamed-project")
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, saved.ProjectUID, match.ProjectUID)
+	_, found, err = config.FindProjectManagedCredential(t.Context(), store, "01ARZ3NDEKTSV4RRFFQ69G5FAX", "spoke-project")
+	require.NoError(t, err)
+	assert.False(t, found)
+
+	// Catalog enrollment still needs its name lookup before a project rekey.
+	saved.Credential.Provider = nil
+	require.NoError(t, store.StoreFederationCredential(t.Context(), saved.ProjectUID, saved.Credential))
+	match, found, err = config.FindProjectManagedCredential(t.Context(), store, "01ARZ3NDEKTSV4RRFFQ69G5FAX", "spoke-project")
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, saved.ProjectUID, match.ProjectUID)
+}
+
 func TestProviderReservationResumesAcrossCredentialReadsAndRekey(t *testing.T) {
 	t.Setenv("KATA_HOME", t.TempDir())
 	ctx := t.Context()

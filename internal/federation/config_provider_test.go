@@ -58,6 +58,7 @@ func TestRemovedProviderCleanupSurvivesPurgedProjectAndDatabaseRetry(t *testing.
 	done := make(chan error, 1)
 	go func() { done <- r.Run(ctx) }()
 	require.Eventually(t, func() bool { return r.Health().LastErrorCategory != "" }, 3*time.Second, 10*time.Millisecond)
+	assert.Equal(t, "local_storage", r.Health().LastErrorCategory)
 	waitForTimerCount(t, clock, 1)
 	clock.Advance(time.Second)
 	select {

@@ -12,6 +12,10 @@ import (
 	"go.kenn.io/kata/pkg/federationprovider"
 )
 
+// ErrFederationProviderStorage distinguishes local database failure from a
+// failed exchange with the credential provider.
+var ErrFederationProviderStorage = errors.New("federation provider local storage failed")
+
 // AuthorizeFederationProvider saves a candidate before contacting the trusted
 // helper. A ready result is retained before the caller may fetch metadata or
 // bind the replica. This operation does not itself enable federation.
@@ -189,7 +193,7 @@ func ReleaseRemovedFederationProvider(ctx context.Context, store db.Storage, man
 	if errors.Is(err, db.ErrNotFound) {
 		project = db.Project{UID: saved.ProjectUID, Name: saved.Credential.SpokeProjectName}
 	} else if err != nil {
-		return saved, project, err
+		return saved, project, errors.Join(ErrFederationProviderStorage, err)
 	}
 	closed, err := releaseFederationProvider(ctx, store, managed, project)
 	return closed, project, err

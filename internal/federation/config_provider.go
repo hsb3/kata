@@ -154,6 +154,8 @@ func providerReconciliationError(err error) error {
 		return reconcileError(ErrBindingConflict, "federation attachment requires an empty project or explicit migration approval")
 	case errors.Is(err, daemon.ErrFederationReplicaCredentialIO):
 		return reconcileError(ErrCredentialIO, "save federation provider operation")
+	case errors.Is(err, daemon.ErrFederationProviderStorage):
+		return reconcileError(ErrLocalStorage, "read retained provider project")
 	default:
 		return reconcileError(ErrHubUnavailable, "federation provider operation did not complete")
 	}
