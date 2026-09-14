@@ -32,7 +32,7 @@ Clicking Claim on an unowned seeded issue sent the existing claim action and ret
 
 [Recorded response](screenshots/wave1/A10-claim-response.json), [rejected action screenshot](screenshots/wave1/A10-claim-rejected.png).
 
-The local-browser [action allowlist](../../../internal/daemon/web_session.go#L474) permits assign, close, move, priority, reopen and unassign, but excludes claim. That file is unchanged by the requested main merge. This prevents the owner-local Claim flow from satisfying the broader A10 scope, although the criterion's Complete/default-layout checks pass. Resolving it requires an explicit decision about the daemon's SPA authorization boundary; the wave does not bypass the refusal or change that boundary.
+The local-browser [action allowlist](../../../internal/daemon/web_session.go#L476) permits assign, close, move, priority, reopen and unassign, but excludes claim. That file is unchanged by the requested main merge. This prevents the owner-local Claim flow from satisfying the broader A10 scope, although the criterion's Complete/default-layout checks pass. Resolving it requires an explicit decision about the daemon's SPA authorization boundary; the wave does not bypass the refusal or change that boundary.
 
 ## Main integration and verification
 

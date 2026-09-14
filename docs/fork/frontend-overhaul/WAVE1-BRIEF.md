@@ -4,7 +4,7 @@ You are the frontend engineer for Henry's public fork of kata (`hsb3/kata`, upst
 
 ## Where
 
-- Repo: the worktree you were started in (a linked worktree of `/Users/henry/Developer/kata`). Branch `fork/frontend-wave1`, based on fork `main`.
+- Repo: the worktree you were started in (a linked worktree of the fork checkout). Branch `fork/frontend-wave1`, based on fork `main`.
 - Spec: `docs/fork/frontend-overhaul/SPEC.md` (read it end to end, look at the screenshots it links). Seed script: `docs/fork/frontend-overhaul/seed.sh`.
 - Frontend: `web/` (Svelte 5 + TypeScript + Vite, bun) and the shared package `packages/kata-ui/`. It is embedded into the Go binary via `internal/web` (`make web-embed`, `make build`).
 - Repo rules: `AGENTS.md` at the repo root. They apply in full: test first (failing test before implementation), evidence-gated regression tests, neutral names only (`spoke-project`, `example-agent`, never Henry's real project or host names) in code, tests, fixtures and commits, no `roborev review`. Do not change the daemon API, database schema, auth, session model or the daemon-switcher trust model (SPEC.md "Non-goals" and the "Web UI trust/threat model" in AGENTS.md).
