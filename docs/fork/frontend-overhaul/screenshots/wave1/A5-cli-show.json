@@ -1,0 +1,23 @@
+{
+  "kata_api_version": 1,
+  "issue": {
+    "id": 37,
+    "uid": "01M2ETVP6JQF72M9ZCGQSEKR0R",
+    "project_id": 2,
+    "project_uid": "01M2ETV3FXBEZV9F95HRCEH208",
+    "short_id": "kr0r",
+    "title": "Wave acceptance audit",
+    "body": "",
+    "status": "closed",
+    "closed_reason": "audit-no-change",
+    "author": "example-owner",
+    "metadata": {},
+    "revision": 1,
+    "created_at": "2026-09-14T02:10:11.282Z",
+    "updated_at": "2026-09-14T02:10:11.442Z",
+    "closed_at": "2026-09-14T02:10:11.442Z"
+  },
+  "comments": [],
+  "links": [],
+  "labels": []
+}
