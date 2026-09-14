@@ -111,6 +111,9 @@ url = "${remoteOrigin}"
 token = "example-remote-token"
 allow_insecure = true
 
+[auth]
+token = "example-local-token"
+
 [web]
 listen = "127.0.0.1:${port}"
 `,
@@ -131,8 +134,6 @@ token = "example-remote-token"
       workspace,
       database: join(home, 'kata.db'),
     }),
-    KATA_AUTH_TOKEN: 'example-local-token',
-    KATA_SERVER: '',
   }
   const remoteEnvironment = {
     ...createDevChildEnvironment(process.env, {
@@ -140,8 +141,6 @@ token = "example-remote-token"
       workspace: remoteWorkspace,
       database: join(remoteHome, 'kata.db'),
     }),
-    KATA_AUTH_TOKEN: 'example-remote-token',
-    KATA_SERVER: '',
   }
 
   const remoteDaemon = startDaemon(binary, remoteWorkspace, remoteEnvironment)

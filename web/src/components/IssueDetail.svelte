@@ -4,9 +4,10 @@
     projectIssueDetail,
     type KataIssueHostAction,
   } from '@kenn-io/kata-ui'
-  import { Button } from '@kenn-io/kit-ui'
+  import { Button, Chip, Typeahead } from '@kenn-io/kit-ui'
   import type { ComponentProps } from 'svelte'
 
+  import IssueStateDialog from './IssueStateDialog.svelte'
   import IssueEditor from './IssueEditor.svelte'
   import IssueHistory from './IssueHistory.svelte'
   import RecurrencePanel from './RecurrencePanel.svelte'
@@ -24,17 +25,30 @@
   })
   const actions = $derived.by(() => {
     const actionsFenced = (props.actionsDisabled ?? false) || (props.authorityBlocked ?? false)
-    const next: KataIssueHostAction[] = [
-      {
-        id: 'edit',
-        label: 'Edit issue',
+    const next: KataIssueHostAction[] =
+      props.issue.issue.status === 'closed'
+        ? []
+        : [
+            {
+              id: 'edit',
+              label: 'Edit issue',
+              disabled: actionsFenced,
+              invoke: () => {
+                editing = true
+              },
+            },
+          ]
+
+    if (props.issue.issue.status === 'open' && !props.issue.issue.owner && props.onClaimIssue) {
+      next.push({
+        id: 'claim',
+        label: 'Claim',
         disabled: actionsFenced,
         invoke: () => {
-          editing = true
+          void props.onClaimIssue?.(props.issue.issue.uid)
         },
-      },
-    ]
-
+      })
+    }
     if (props.workspaceAction?.onClick) {
       next.push({
         id: 'workspace',
@@ -65,11 +79,48 @@
 </section>
 {#if !editing}
   <div class="shared-detail">
+    {#if props.issue.issue.status === 'open' && props.issue.issue.metadata['work.attention']}
+      <Chip size="sm" tone="muted" uppercase={false}
+        >{String(props.issue.issue.metadata['work.attention'])}</Chip
+      >
+      <p>{String(props.issue.issue.metadata['work.attention_msg'] ?? '')}</p>
+    {/if}
+    {#key `${props.issue.issue.uid}:${props.draftFenceGeneration ?? 0}`}
+      <IssueStateDialog
+        issue={props.issue}
+        onCloseIssue={props.onCloseIssue}
+        onReopenIssue={props.onReopenIssue}
+        disabled={(props.actionsDisabled ?? false) || (props.authorityBlocked ?? false)}
+      />
+    {/key}
     <SharedIssueDetail {detail} {actions} />
+    {#if props.issue.issue.status === 'open'}
+      <Typeahead
+        options={props.ownerOptions}
+        value={props.issue.issue.owner ?? ''}
+        placeholder="Owner"
+        triggerPrefix="Owner:"
+        fallbackLabel="Unassigned"
+        allowClear
+        clearLabel="Unassign"
+        disabled={(props.actionsDisabled ?? false) || (props.authorityBlocked ?? false)}
+        onselect={(owner) =>
+          owner
+            ? props.onAssignOwner(props.issue.issue.uid, owner)
+            : props.onUnassignOwner(props.issue.issue.uid)}
+      />
+    {/if}
     {#if visibleRecurrences.length > 0}
       <RecurrencePanel recurrences={visibleRecurrences} readOnly />
     {/if}
-    <IssueHistory events={props.events ?? []} />
+    <IssueHistory
+      events={props.events ?? []}
+      onOpenReference={async (reference) => {
+        const matches = await props.searchReferences?.(reference)
+        const target = matches?.find((match) => match.qualified_id === reference)
+        if (target) await props.onSelectIssue?.({ uid: target.uid })
+      }}
+    />
   </div>
 {/if}
 

@@ -7,7 +7,7 @@ k() { (cd "$R/ws" && env -u KATA_SERVER -u KATA_AUTH_TOKEN -u KATA_AUTHOR -u KAT
 # c PROJECT ACTOR TITLE [create flags...] -> prints short_id
 c() { local p=$1 a=$2 t=$3; shift 3; k create "$t" --project "$p" --as "$a" --force-new --json "$@" | jq -r .issue.short_id; }
 
-CL=claude@spoke-mac CX=codex HB=henry
+CL=example-agent CX=example-reviewer HB=example-owner
 
 k projects create spoke-project >/dev/null
 EPIC=$(c spoke-project $HB "Workstream: ship spoke v2 sync engine" --priority 1 --label workstream \

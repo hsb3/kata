@@ -6,7 +6,7 @@
   import LayersIcon from '@lucide/svelte/icons/layers'
   import PlusIcon from '@lucide/svelte/icons/plus'
   import StarIcon from '@lucide/svelte/icons/star'
-  import { ScrollBox, showFlash, Typeahead, type TypeaheadOption } from '@kenn-io/kit-ui'
+  import { Checkbox, ScrollBox, showFlash, Typeahead, type TypeaheadOption } from '@kenn-io/kit-ui'
 
   import GroupedSidebarSection from './GroupedSidebarSection.svelte'
 
@@ -19,6 +19,7 @@
   import type { KataAreaSummary, KataCurrentView } from '../lib/kata/authority'
 
   interface Props {
+    needsYouCount?: number | undefined
     areas: KataAreaSummary[]
     projects: readonly KataProjectSummary[]
     currentView: KataCurrentView
@@ -35,6 +36,7 @@
 
   let {
     areas,
+    needsYouCount,
     projects,
     currentView,
     searchFilters,
@@ -53,6 +55,8 @@
     label: string
     icon: typeof InboxIcon
   }> = [
+    { name: 'needs-you', label: 'Needs you', icon: AlarmClockIcon },
+    { name: 'ready', label: 'Ready', icon: CheckCircleIcon },
     { name: 'inbox', label: 'Inbox', icon: InboxIcon },
     { name: 'today', label: 'Today', icon: StarIcon },
     { name: 'upcoming', label: 'Upcoming', icon: CalendarDaysIcon },
@@ -60,6 +64,49 @@
     { name: 'all', label: 'All Open', icon: LayersIcon },
     { name: 'logbook', label: 'Logbook', icon: CheckCircleIcon },
   ]
+
+  let projectQuery = $state('')
+  let hideEmpty = $state(false)
+  let pinned = $state<string[]>(loadPins())
+  function loadPins(): string[] {
+    try {
+      const value: unknown = JSON.parse(localStorage.getItem('kata:pinned-projects/v1') ?? '[]')
+      return Array.isArray(value)
+        ? value.filter((item): item is string => typeof item === 'string')
+        : []
+    } catch {
+      return []
+    }
+  }
+  function togglePin(uid: string): void {
+    pinned = pinned.includes(uid) ? pinned.filter((value) => value !== uid) : [...pinned, uid]
+    try {
+      localStorage.setItem('kata:pinned-projects/v1', JSON.stringify(pinned))
+    } catch {
+      /* Preferences remain usable in memory. */
+    }
+  }
+  const visibleAreas = $derived.by(() => {
+    const visible = (project: KataProjectSummary) =>
+      project.name.toLowerCase().includes(projectQuery.trim().toLowerCase()) &&
+      (!hideEmpty || project.open_count > 0)
+    const remaining = (projectQuery.trim() ? projects : []).filter(
+      (project) => !areas.some((area) => area.projects.some((entry) => entry.uid === project.uid)),
+    )
+    return [
+      { name: 'Pinned', projects: projects.filter((project) => pinned.includes(project.uid)) },
+      ...areas.map((area) => ({
+        ...area,
+        projects: area.projects.filter((project) => !pinned.includes(project.uid)),
+      })),
+      {
+        name: 'Other projects',
+        projects: remaining.filter((project) => !pinned.includes(project.uid)),
+      },
+    ]
+      .map((area) => ({ ...area, projects: area.projects.filter(visible) }))
+      .filter((area) => area.projects.length > 0)
+  })
 
   let creatingProject = $state(false)
   let createDraft = $state('')
@@ -93,6 +140,7 @@
 
   function viewCount(name: KataTaskViewName): number | undefined {
     const inboxProject = projects.find((project) => project.metadata.role === 'inbox')
+    if (name === 'needs-you') return needsYouCount
     if (name === 'inbox') return inboxProject?.open_count
     if (name === 'today' && currentView.name === 'today' && searchFilters.scope.kind === 'all') {
       return currentView.groups.reduce((sum, group) => sum + group.issues.length, 0)
@@ -168,40 +216,21 @@
       {/each}
     </nav>
 
-    <div class="inbox-project-control">
-      <Typeahead
-        options={inboxOptions}
-        value={inboxProjectUID ?? ''}
-        fallbackLabel="Choose a project"
-        placeholder="Inbox project"
-        triggerPrefix="Inbox project:"
-        emptyLabel="No projects available"
-        disabled={inboxDesignationDisabled || projects.length === 0}
-        error={inboxError}
-        onselect={designateInbox}
-      />
-    </div>
-
-    {#each areas as area (area.name)}
-      <GroupedSidebarSection
-        label={area.name}
-        count={area.projects.length}
-        collapsed={collapsedAreas.includes(area.name)}
-        onclick={() => toggleArea(area.name)}
-      >
-        {#each area.projects as project (project.uid)}
-          <button
-            type="button"
-            class="project-select-button"
-            class:active={isProjectActive(project.uid)}
-            onclick={() => void onOpenProject(project.uid)}
-          >
-            <span class="project-name">{project.name}</span>
-            <span class="project-count count">{project.open_count}</span>
-          </button>
-        {/each}
-      </GroupedSidebarSection>
-    {/each}
+    {#if currentView.name !== 'needs-you' && currentView.name !== 'ready'}
+      <div class="inbox-project-control">
+        <Typeahead
+          options={inboxOptions}
+          value={inboxProjectUID ?? ''}
+          fallbackLabel="Choose a project"
+          placeholder="Inbox project"
+          triggerPrefix="Inbox project:"
+          emptyLabel="No projects available"
+          disabled={inboxDesignationDisabled || projects.length === 0}
+          error={inboxError}
+          onselect={designateInbox}
+        />
+      </div>
+    {/if}
 
     <div class="project-create">
       {#if creatingProject}
@@ -241,10 +270,78 @@
         </button>
       {/if}
     </div>
+    <div class="project-tools">
+      <input aria-label="Filter projects" placeholder="Filter projects" bind:value={projectQuery} />
+      <Checkbox
+        label="Hide empty projects"
+        checked={hideEmpty}
+        onchange={(checked) => {
+          hideEmpty = checked
+        }}
+      />
+    </div>
+    {#each visibleAreas as area (area.name)}
+      <GroupedSidebarSection
+        label={area.name}
+        count={area.projects.length}
+        collapsed={collapsedAreas.includes(area.name)}
+        onclick={() => toggleArea(area.name)}
+      >
+        {#each area.projects as project (project.uid)}
+          <div class="project-row">
+            <button
+              type="button"
+              class="project-select-button"
+              class:active={isProjectActive(project.uid)}
+              onclick={() => void onOpenProject(project.uid)}
+            >
+              <span class="project-name">{project.name}</span>
+              <span class="project-count count">{project.open_count}</span>
+            </button>
+            <button
+              type="button"
+              class="pin-button"
+              aria-label={`${pinned.includes(project.uid) ? 'Unpin' : 'Pin'} ${project.name}`}
+              aria-pressed={pinned.includes(project.uid)}
+              onclick={() => togglePin(project.uid)}><StarIcon size={13} /></button
+            >
+          </div>
+        {/each}
+      </GroupedSidebarSection>
+    {/each}
   </ScrollBox>
 </div>
 
 <style>
+  .project-tools {
+    display: grid;
+    gap: 8px;
+    padding: 0 12px 12px;
+    font-size: var(--font-size-xs);
+  }
+  .project-tools > input {
+    width: 100%;
+    min-width: 0;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
+    padding: 6px;
+    border-radius: 4px;
+  }
+  .project-row {
+    display: flex;
+    align-items: center;
+  }
+  .pin-button {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 0;
+    padding: 6px;
+    cursor: pointer;
+  }
+  .pin-button[aria-pressed='true'] {
+    color: var(--accent-amber);
+  }
   .kata-sidebar {
     --sidebar-list-border: var(--border-default);
     --sidebar-row-bg: transparent;

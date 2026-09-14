@@ -6,21 +6,27 @@
   import Modal from './Modal.svelte'
 
   interface Props {
+    disabled?: boolean
     issue: KataTaskDetail
     onCloseIssue: (request: KataTaskCloseRequest) => boolean | Promise<boolean>
     onReopenIssue: () => void | Promise<void>
   }
 
-  let { issue, onCloseIssue, onReopenIssue }: Props = $props()
+  let { issue, onCloseIssue, onReopenIssue, disabled = false }: Props = $props()
 
-  type CloseReason = 'done' | 'wontfix' | 'duplicate' | 'superseded'
-  type DoneEvidence = 'test' | 'commit' | 'pr' | 'reviewed-paths' | 'external'
+  type CloseReason = 'done' | 'wontfix' | 'duplicate' | 'superseded' | 'audit-no-change'
+  type DoneEvidence = 'test' | 'commit' | 'pr' | 'reviewed-paths' | 'external' | 'no-change-audit'
 
   const closeReasons: ReadonlyArray<{
     value: CloseReason
     label: string
     description: string
   }> = [
+    {
+      value: 'audit-no-change',
+      label: 'Audit — no change',
+      description: 'One audit rationale, with optional reviewed paths.',
+    },
     { value: 'done', label: 'Done', description: 'Completed as intended.' },
     { value: 'wontfix', label: "Won't do", description: 'Decided not to pursue.' },
     { value: 'duplicate', label: 'Duplicate', description: 'Tracked elsewhere.' },
@@ -30,8 +36,9 @@
   let completeOpen = $state(false)
   let completeReason = $state<CloseReason>('done')
   let completeMessage = $state('')
-  let evidenceType = $state<DoneEvidence>('test')
-  let evidenceValue = $state('')
+  let evidenceRows = $state<Array<{ type: DoneEvidence; value: string }>>([
+    { type: 'test', value: '' },
+  ])
   let targetIssue = $state('')
   let pending = $state(false)
   let completeMessageInput: HTMLTextAreaElement | null = $state(null)
@@ -43,8 +50,7 @@
     completeOpen = false
     completeReason = 'done'
     completeMessage = ''
-    evidenceType = 'test'
-    evidenceValue = ''
+    evidenceRows = [{ type: 'test', value: '' }]
     targetIssue = ''
     pending = false
   })
@@ -52,20 +58,19 @@
   function openCompleteDialog(): void {
     completeReason = 'done'
     completeMessage = ''
-    evidenceType = 'test'
-    evidenceValue = ''
+    evidenceRows = [{ type: 'test', value: '' }]
     targetIssue = ''
     completeOpen = true
     queueMicrotask(() => completeMessageInput?.focus())
   }
 
   function closeCompleteDialog(): void {
-    if (pending) return
+    if (disabled || pending) return
     completeOpen = false
   }
 
   async function completeIssue(): Promise<void> {
-    if (pending || !canComplete()) return
+    if (disabled || pending || !canComplete()) return
     pending = true
     try {
       const ok = await onCloseIssue(closeRequest())
@@ -73,8 +78,7 @@
         completeOpen = false
         completeMessage = ''
         completeReason = 'done'
-        evidenceType = 'test'
-        evidenceValue = ''
+        evidenceRows = [{ type: 'test', value: '' }]
         targetIssue = ''
       }
     } finally {
@@ -90,7 +94,12 @@
 
   function canComplete(): boolean {
     if (completeMessage.trim().length < messageMinimum()) return false
-    if (completeReason === 'done') return evidenceValue.trim().length > 0
+    if (completeReason === 'done' || completeReason === 'audit-no-change')
+      return (
+        evidenceRows.every((row) => row.value.trim().length > 0) &&
+        (completeReason !== 'audit-no-change' ||
+          evidenceRows.filter((row) => row.type === 'no-change-audit').length === 1)
+      )
     if (completeReason === 'duplicate' || completeReason === 'superseded') {
       return targetIssue.trim().length > 0
     }
@@ -111,31 +120,30 @@
         ],
       }
     }
-    if (completeReason === 'done') {
-      const value = evidenceValue.trim()
-      const evidence =
-        evidenceType === 'commit'
-          ? { type: 'commit', sha: value }
-          : evidenceType === 'pr'
-            ? { type: 'pr', url: value }
-            : evidenceType === 'external'
-              ? { type: 'external', account: value }
-              : evidenceType === 'reviewed-paths'
-                ? {
-                    type: 'reviewed-paths',
-                    paths: value
-                      .split(/[\n,]/)
-                      .map((path) => path.trim())
-                      .filter(Boolean),
-                  }
-                : { type: 'test', command: value }
-      return { reason: completeReason, message, evidence: [evidence] }
+    if (completeReason === 'done' || completeReason === 'audit-no-change') {
+      const evidence = evidenceRows.map(({ type, value: raw }) => {
+        const value = raw.trim()
+        if (type === 'commit') return { type, sha: value }
+        if (type === 'pr') return { type, url: value }
+        if (type === 'external') return { type, account: value }
+        if (type === 'no-change-audit') return { type, rationale: value }
+        if (type === 'reviewed-paths')
+          return {
+            type,
+            paths: value
+              .split(/[\n,]/)
+              .map((path) => path.trim())
+              .filter(Boolean),
+          }
+        return { type, command: value }
+      })
+      return { reason: completeReason, message, evidence }
     }
     return { reason: completeReason, message, evidence: [] }
   }
 
   async function reopenIssue(): Promise<void> {
-    if (pending) return
+    if (disabled || pending) return
     pending = true
     try {
       await onReopenIssue()
@@ -157,7 +165,7 @@
     class="detail-action"
     size="sm"
     label="Reopen"
-    disabled={pending}
+    disabled={disabled || pending}
     onclick={() => void reopenIssue()}
   >
     <RotateCcwIcon size={13} strokeWidth={1.9} />
@@ -169,7 +177,7 @@
     tone="info"
     surface="solid"
     label="Complete"
-    disabled={pending}
+    disabled={disabled || pending}
     onclick={openCompleteDialog}
   >
     <CheckIcon size={13} strokeWidth={1.9} />
@@ -183,7 +191,7 @@
       <p class="complete-task-id">{issue.issue.qualified_id}</p>
     </div>
 
-    <fieldset class="complete-reasons" disabled={pending}>
+    <fieldset class="complete-reasons" disabled={disabled || pending}>
       <legend>Reason</legend>
       {#each closeReasons as reason (reason.value)}
         <label class="complete-reason">
@@ -192,6 +200,14 @@
             name="complete-reason"
             value={reason.value}
             bind:group={completeReason}
+            onchange={() => {
+              evidenceRows = [
+                {
+                  type: reason.value === 'audit-no-change' ? 'no-change-audit' : 'test',
+                  value: '',
+                },
+              ]
+            }}
           />
           <span>
             <strong>{reason.label}</strong>
@@ -201,32 +217,57 @@
       {/each}
     </fieldset>
 
-    {#if completeReason === 'done'}
-      <div class="complete-evidence">
-        <label>
-          <span>Evidence type</span>
-          <select bind:value={evidenceType} disabled={pending}>
-            <option value="test">Test command</option>
-            <option value="commit">Commit SHA</option>
-            <option value="pr">Pull request URL</option>
-            <option value="reviewed-paths">Reviewed paths</option>
-            <option value="external">External account</option>
-          </select>
-        </label>
-        <label>
-          <span>Evidence value</span>
-          <input
-            aria-label="Evidence value"
-            bind:value={evidenceValue}
-            placeholder={evidenceType === 'reviewed-paths'
-              ? 'path/one, path/two'
-              : evidenceType === 'external'
-                ? 'where and how the work was completed'
-                : ''}
-            disabled={pending}
-          />
-        </label>
-      </div>
+    {#if completeReason === 'done' || completeReason === 'audit-no-change'}
+      {#each evidenceRows as row, index (index)}
+        <div class="complete-evidence">
+          <label>
+            <span>Evidence type</span>
+            <select aria-label="Evidence type" bind:value={row.type} disabled={disabled || pending}>
+              {#if completeReason === 'audit-no-change'}
+                <option value="no-change-audit">No change audit</option>
+              {:else}
+                <option value="test">Test command</option>
+                <option value="commit">Commit SHA</option>
+                <option value="pr">Pull request URL</option>
+                <option value="external">External account</option>
+              {/if}
+              <option value="reviewed-paths">Reviewed paths</option>
+            </select>
+          </label>
+          <label>
+            <span>Evidence value</span>
+            <input
+              aria-label="Evidence value"
+              bind:value={row.value}
+              placeholder={row.type === 'reviewed-paths'
+                ? 'path/one, path/two'
+                : row.type === 'external'
+                  ? 'where and how the work was completed'
+                  : ''}
+              disabled={disabled || pending}
+            />
+          </label>
+        </div>
+        {#if evidenceRows.length > 1}<Button
+            size="sm"
+            label="Remove evidence"
+            disabled={disabled || pending}
+            onclick={() => {
+              evidenceRows = evidenceRows.filter((_, i) => i !== index)
+            }}
+          />{/if}
+      {/each}
+      <Button
+        size="sm"
+        label="Add evidence"
+        disabled={disabled || pending}
+        onclick={() => {
+          evidenceRows = [
+            ...evidenceRows,
+            { type: completeReason === 'audit-no-change' ? 'reviewed-paths' : 'test', value: '' },
+          ]
+        }}
+      />
     {:else if completeReason === 'duplicate' || completeReason === 'superseded'}
       <label class="complete-field">
         <span>Target issue</span>
@@ -234,7 +275,7 @@
           aria-label="Target issue"
           bind:value={targetIssue}
           placeholder="example-project#d4ex"
-          disabled={pending}
+          disabled={disabled || pending}
         />
       </label>
     {/if}
@@ -246,13 +287,13 @@
         rows="4"
         placeholder="What was done? Any follow-ups? Cmd/Ctrl+Enter to confirm."
         bind:value={completeMessage}
-        disabled={pending}
+        disabled={disabled || pending}
       ></textarea>
     </label>
   </div>
 
   {#snippet footer()}
-    <Button size="sm" label="Cancel" onclick={closeCompleteDialog} disabled={pending} />
+    <Button size="sm" label="Cancel" onclick={closeCompleteDialog} disabled={disabled || pending} />
     <Button
       size="sm"
       tone="info"
@@ -261,7 +302,7 @@
       onclick={() => {
         void completeIssue()
       }}
-      disabled={pending || !canComplete()}
+      disabled={disabled || pending || !canComplete()}
     />
   {/snippet}
 </Modal>

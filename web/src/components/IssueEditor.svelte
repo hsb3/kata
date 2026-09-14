@@ -63,6 +63,7 @@
     onPatchMetadata: (uid: string, patch: Record<string, unknown>) => boolean | Promise<boolean>
     onAddComment?: ((uid: string, body: string) => boolean | Promise<boolean>) | undefined
     onEditIssue: (uid: string, patch: KataTaskEditPatch) => boolean | Promise<boolean>
+    onClaimIssue?: ((uid: string) => boolean | Promise<boolean>) | undefined
     onAssignOwner: (uid: string, owner: string) => boolean | Promise<boolean>
     onUnassignOwner: (uid: string) => boolean | Promise<boolean>
     onSetPriority: (uid: string, priority: number | null) => boolean | Promise<boolean>

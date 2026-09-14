@@ -70,6 +70,8 @@ export function originStabilityWarning(originStable: boolean): string | undefine
 function cloneDefaults(): Preferences {
   return {
     ...defaultPreferences,
+    splitDirection:
+      typeof window !== 'undefined' && window.innerWidth >= 1280 ? 'horizontal' : 'vertical',
     columns: [...defaultPreferences.columns],
     collapsedGroups: [...defaultPreferences.collapsedGroups],
   }

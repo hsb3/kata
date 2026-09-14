@@ -11,6 +11,26 @@ describe('AppShell', () => {
     vi.useRealTimers()
   })
 
+  test('removes general filters and column controls from prioritized views', () => {
+    render(AppShell, {
+      props: {
+        route: {
+          kind: 'kata',
+          view: 'needs-you',
+          graph: false,
+          filters: { status: [], owner: [], label: [], relationship: [] },
+        },
+        snapshot: snapshot(),
+        loading: false,
+        ...mutationProps(),
+        onNavigate: vi.fn(),
+        onCreateProject: vi.fn(async () => ({ changed: true })),
+      },
+    })
+    expect(screen.queryByPlaceholderText('Search tasks...')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Columns' })).toBeNull()
+  })
+
   test('renders the workspace header through the kit-ui top bar', () => {
     const { container } = render(AppShell, {
       props: {
@@ -56,7 +76,7 @@ describe('AppShell', () => {
     expect(screen.getByRole('button', { name: /Example issue/ })).not.toBeNull()
     expect(
       within(screen.getByRole('region', { name: 'Kata navigation' })).getByRole('button', {
-        name: /example-project/,
+        name: /^example-project/,
       }),
     ).not.toBeNull()
 

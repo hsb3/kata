@@ -3,10 +3,11 @@
   import { describeKataEvent } from '../lib/history/format'
 
   interface Props {
+    onOpenReference?: ((reference: string) => void | Promise<void>) | undefined
     events: readonly KataTaskEvent[]
   }
 
-  let { events }: Props = $props()
+  let { events, onOpenReference }: Props = $props()
 </script>
 
 <section class="events" aria-labelledby="kata-events-title">
@@ -22,7 +23,42 @@
           <span class="event-icon" aria-hidden="true">
             <EventIcon size={14} strokeWidth={1.8} />
           </span>
-          <span>{descriptor.label}</span>
+          <div>
+            <span>{descriptor.label}</span>
+            {#if event.type === 'issue.closed'}
+              <p>{event.actor} · <time datetime={event.created_at}>{event.created_at}</time></p>
+              <p>{String(event.payload?.message ?? '')}</p>
+              {#if Array.isArray(event.payload?.evidence)}
+                {#each event.payload.evidence as evidence, index (index)}
+                  <p>
+                    {String(evidence.type)}
+                    {#if typeof evidence.url === 'string' && /^https?:\/\//.test(evidence.url)}<a
+                        href={evidence.url}
+                        target="_blank"
+                        rel="noopener noreferrer">{evidence.url}</a
+                      >{:else if typeof evidence.issue_ref === 'string' && onOpenReference}<a
+                        href={`?view=all-open&status=all&text=${encodeURIComponent(evidence.issue_ref)}`}
+                        onclick={(event) => {
+                          event.preventDefault()
+                          void onOpenReference?.(evidence.issue_ref)
+                        }}>{evidence.issue_ref}</a
+                      >{:else}<code
+                        >{String(
+                          evidence.sha ??
+                            evidence.command ??
+                            evidence.url ??
+                            evidence.rationale ??
+                            evidence.account ??
+                            evidence.issue_ref ??
+                            evidence.paths?.join(', ') ??
+                            '',
+                        )}</code
+                      >{/if}
+                  </p>
+                {/each}
+              {/if}
+            {/if}
+          </div>
         </li>
       {/each}
     </ul>

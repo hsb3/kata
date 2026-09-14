@@ -1,6 +1,7 @@
 export const KATA_TASK_COLUMNS_STORAGE_KEY = 'kata:issue-columns/v1'
 
 export const KATA_OPTIONAL_TASK_COLUMNS = [
+  { id: 'attention', label: 'Attention' },
   { id: 'updated', label: 'Updated' },
   { id: 'priority', label: 'Priority' },
   { id: 'due', label: 'Due' },
@@ -16,7 +17,7 @@ type ColumnStorage = Pick<Storage, 'getItem' | 'setItem'>
 const knownColumns = new Set<string>(KATA_OPTIONAL_TASK_COLUMNS.map((column) => column.id))
 
 export function defaultKataTaskColumnVisibility(): KataTaskColumnVisibility {
-  return { updated: true, priority: true, due: true, owner: true, tags: true }
+  return { attention: false, updated: true, priority: true, due: true, owner: true, tags: true }
 }
 
 function browserStorage(): ColumnStorage | null {

@@ -346,7 +346,7 @@ function enrichRelationships(issues: KataTaskSummary[], links: readonly UILink[]
         break
       case 'blocks':
         if (from) from.blocks = appendPeer(from.blocks, toPeer)
-        if (to) to.blocked_by = appendPeer(to.blocked_by, fromPeer)
+        if (to && link.from_status === 'open') to.blocked_by = appendPeer(to.blocked_by, fromPeer)
         break
       case 'related':
         if (from) from.related = appendPeer(from.related, toPeer)

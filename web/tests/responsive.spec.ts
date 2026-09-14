@@ -46,13 +46,17 @@ test('mobile navigation stays out of the task flow until opened', async ({ page,
 test('task filters stay inside a narrow list pane without overlapping', async ({ page, kata }) => {
   await page.setViewportSize({ width: 1440, height: 800 })
   const credentials = await kata.launch(page)
-  const issue = await kata.seedIssue(page, credentials, { title: 'Narrow pane example' })
+  const issue = await kata.seedIssue(page, credentials, {
+    title:
+      'A long attention request that must keep its status visible when the list pane is narrow',
+    metadata: { 'work.attention': 'stuck' },
+  })
   await page.goto(`${kata.origin}/kata?view=all-open&issue=${issue.uid}`)
-  await page.getByRole('button', { name: 'Switch to side-by-side layout' }).click()
+  await expect(page.getByRole('button', { name: 'Switch to stacked layout' })).toBeVisible()
 
   const layout = await page.locator('.kata-search-toolbar').evaluate((toolbar) => {
     const container = toolbar.getBoundingClientRect()
-    const controls = Array.from(toolbar.querySelectorAll('input, button'), (element) => {
+    const controls = Array.from(toolbar.querySelectorAll('input, button, select'), (element) => {
       const rect = element.getBoundingClientRect()
       return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom }
     })
@@ -78,4 +82,19 @@ test('task filters stay inside a narrow list pane without overlapping', async ({
 
   expect(layout).toEqual({ height: expect.any(Number), contained: true, overlaps: false })
   expect(layout.height).toBeGreaterThan(30)
+  const attention = page.locator(`.issue-row[data-uid="${issue.uid}"] .attention-chip`)
+  await page.locator(`.issue-row[data-uid="${issue.uid}"]`).scrollIntoViewIfNeeded()
+  expect(
+    await attention.evaluate((element) => {
+      const chip = element.getBoundingClientRect()
+      const row = element.closest('.issue-row')!.getBoundingClientRect()
+      return (
+        chip.width > 0 &&
+        chip.height > 0 &&
+        chip.bottom <= row.bottom &&
+        chip.right <= row.right &&
+        document.elementFromPoint(chip.x + chip.width / 2, chip.y + chip.height / 2) === element
+      )
+    }),
+  ).toBe(true)
 })

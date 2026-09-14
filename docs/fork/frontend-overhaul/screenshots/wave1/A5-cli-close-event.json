@@ -1,0 +1,36 @@
+{
+  "event_id": 111,
+  "event_uid": "01M2ETVPBJ6ANVWPZD7BJSBR1J",
+  "origin_instance_uid": "01M2ETV3CFXDNG7CTMGS0GZN4Q",
+  "type": "issue.closed",
+  "project_id": 2,
+  "project_uid": "01M2ETV3FXBEZV9F95HRCEH208",
+  "project_name": "spoke-project",
+  "issue_id": 37,
+  "issue_uid": "01M2ETVP6JQF72M9ZCGQSEKR0R",
+  "issue_short_id": "kr0r",
+  "actor": "kata-web",
+  "hlc_physical_ms": 1789351811442,
+  "hlc_counter": 0,
+  "content_hash": "4c3983d5553c840eed98d977729af4ba74d66bbf4d6099d810d8451dd2452409",
+  "payload": {
+    "reason": "audit-no-change",
+    "closed_at": "2026-09-14T02:10:11.442Z",
+    "message": "Reviewed the acceptance fixture and confirmed no changes are needed.",
+    "evidence": [
+      {
+        "type": "no-change-audit",
+        "rationale": "No changes needed after acceptance review"
+      },
+      {
+        "type": "reviewed-paths",
+        "paths": [
+          "docs/reference/cli.md"
+        ]
+      }
+    ],
+    "parent_uid": "",
+    "parent_short_id": ""
+  },
+  "created_at": "2026-09-14T02:10:11.442Z"
+}

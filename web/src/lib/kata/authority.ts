@@ -30,7 +30,7 @@ export interface ProjectKataWorkspaceViewOptions {
 }
 
 function defaultStatusForView(view: KataTaskViewName): KataTaskSearchFilters['status'] {
-  return view === 'logbook' ? 'closed' : 'open'
+  return view === 'logbook' ? 'closed' : view === 'ready' ? 'ready' : 'open'
 }
 
 function hasActiveFilters(view: KataTaskViewName, filters: KataTaskSearchFilters): boolean {
@@ -101,11 +101,16 @@ export function projectKataWorkspaceView(
   const issues = options.issues
     .filter(
       (issue) =>
+        !options.filters.attention ||
+        (issue.status === 'open' && issue.metadata['work.attention'] === options.filters.attention),
+    )
+    .filter(
+      (issue) =>
         options.filters.scope.kind !== 'project' ||
         issue.project_uid === options.filters.scope.project_uid,
     )
     .map((issue) => ({ ...issue }))
-  if (hasActiveFilters(options.view, options.filters)) {
+  if (options.view !== 'needs-you' && hasActiveFilters(options.view, options.filters)) {
     return {
       view: options.view,
       groups: issues.length > 0 ? [{ id: 'search-results', title: 'Results', issues }] : [],

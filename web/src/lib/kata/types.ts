@@ -1,4 +1,12 @@
-export type KataTaskViewName = 'inbox' | 'today' | 'upcoming' | 'deadlines' | 'all' | 'logbook'
+export type KataTaskViewName =
+  | 'needs-you'
+  | 'ready'
+  | 'inbox'
+  | 'today'
+  | 'upcoming'
+  | 'deadlines'
+  | 'all'
+  | 'logbook'
 
 export interface KataTaskChecklistItem {
   id: string
@@ -95,6 +103,7 @@ export type KataTaskStatusFilter = 'open' | 'ready' | 'closed' | 'all'
 export type KataTaskSearchScope = { kind: 'all' } | { kind: 'project'; project_uid: string }
 
 export interface KataTaskSearchFilters {
+  attention?: string | undefined
   scope: KataTaskSearchScope
   status: KataTaskStatusFilter
   owner: string
@@ -309,7 +318,7 @@ export interface KataTaskCloseOptions {
 }
 
 export interface KataTaskCloseRequest {
-  reason: 'done' | 'wontfix' | 'duplicate' | 'superseded'
+  reason: 'done' | 'wontfix' | 'duplicate' | 'superseded' | 'audit-no-change'
   message: string
   evidence: import('../api/generated').Evidence[]
 }
