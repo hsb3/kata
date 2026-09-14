@@ -144,6 +144,7 @@ type ListAllIssuesParams struct {
 type CreateCommentParams struct {
 	IssueID                int64
 	Author                 string
+	Teammate               string
 	Body                   string
 	IdempotencyKey         string
 	IdempotencyFingerprint string

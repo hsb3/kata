@@ -66,6 +66,10 @@ func newMCPServeCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			handle, err := resolveTeammate(command)
+			if err != nil {
+				return err
+			}
 			ctx := command.Context()
 			var storage *storageadmin.Admin
 			if strings.TrimSpace(storageRoot) != "" {
@@ -151,6 +155,7 @@ func newMCPServeCmd() *cobra.Command {
 				ProjectID:         projectID,
 				ProjectName:       projectName,
 				Actor:             actor,
+				Teammate:          handle,
 				Version:           version.Version,
 				StorageAdmin:      storage,
 				EnableTokenAdmin:  enableTokenAdmin,

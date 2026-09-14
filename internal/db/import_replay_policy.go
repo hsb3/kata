@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"go.kenn.io/kata/internal/config"
+	"go.kenn.io/kata/internal/teammate"
 )
 
 // ReplayEventProjectName selects the durable name covered by an event's
@@ -180,7 +181,13 @@ func validateImportRecord(record ImportRecord) error {
 	case *IssueEmbeddingExport:
 		return requireImportPayload(rec, ImportKindIssueEmbedding)
 	case *CommentExport:
-		return requireImportPayload(rec, ImportKindComment)
+		if err := requireImportPayload(rec, ImportKindComment); err != nil {
+			return err
+		}
+		if err := teammate.Validate(rec.Teammate); err != nil {
+			return fmt.Errorf("kind %q: %w", ImportKindComment, err)
+		}
+		return nil
 	case *IssueLabelExport:
 		return requireImportPayload(rec, ImportKindIssueLabel)
 	case *LinkExport:

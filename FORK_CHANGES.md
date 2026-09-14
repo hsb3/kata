@@ -26,16 +26,19 @@ upstream `.kata.toml` binds to it unchanged); parent workstream `dev-journey#9bh
   25, so a fork daemon must not be pointed at the hosted database.
 - Verify gate after every sync or fork change: `go test ./...`, `make web-check`
   when `web/` changed.
+  - Run tests with `TMPDIR=/tmp/kt` (`mkdir -p /tmp/kt` first): the default macOS
+    temp path is too long for the unix-socket tests.
 
 ## Divergences
 
 | Date | What | Why | Move + merge rule |
 |---|---|---|---|
 | 2026-09-13 | Adopted this SOP and ledger (`FORK_CHANGES.md`) | Governance baseline | Addition; upstream never has this file |
-| 2026-09-13 | Build mode: source reference only. Installed client stays Homebrew 0.16.0; the hosted daemon is not built from this fork | Keep live tooling stable while fork work is proven locally | Revisit when a fork change must run live |
-| 2026-09-13 | internal/mcp/server.go: root not / if-then-else instead of root oneOf/allOf in tool input schemas (bfe11bb) | Messages API rejects top-level oneOf/allOf/anyOf; upstream PR kenn-io/kata#365 | Modify; drop our version when upstream merges #365, otherwise keep ours on conflict |
+| 2026-09-14 | Build mode: built from the checkout. Macs: `make install` with mise's pinned Go/Bun (`GOBIN=$HOME/.local/bin`, which precedes `/opt/homebrew/bin` on PATH, so it shadows the Homebrew client — not run yet). Daemon: `deploy/railway/Dockerfile` + `entrypoint.sh` + `Dockerfile.dockerignore` (fork-only directory), documented in `docs/fork/migration/BUILD.md` (ark1). Version stamp stays upstream's `git describe` output; fork builds are identified by the `g<sha>` suffix | One documented way to produce fork binaries for both targets before the Railway cutover; no fork tags or release automation, per AGENTS.md | Addition; upstream has no container build. The installed Homebrew 0.16.0 client and the live 0.15.1 daemon stay untouched until M4/M5 |
+| 2026-09-13 | internal/mcp/server.go: root not / if-then-else instead of root oneOf/allOf in tool input schemas (bfe11bb) | Messages API rejects top-level oneOf/allOf/anyOf; upstream PR kenn-io/kata#365 | Modify; keep ours (Henry 2026-09-14: upstream PRs are courtesy only) |
 | 2026-09-13 | cmd/kata/mcp.go: requireMCPDaemonHealth retries transport failures ≤20s at startup (05e06e6); docs/fork/mcp-actor-connect.md | Claude Code never retries a stdio server that exits before initialize | Modify; keep ours, re-apply if upstream reworks requireDaemonAPIVersionHealth; candidate for an upstream PR |
 | 2026-09-13 | docs/fork/frontend-overhaul/ (spec, seed.sh, screenshots) | Fork-only planning docs | Addition; keep ours |
+| 2026-09-14 | Upstream PR kenn-io/kata#363 teammate attribution merged ahead of upstream (4ebf0ec): CLI/MCP teammate field, KATA_TEAMMATE/KATA_INBOX_USER, notify/inbox prerequisite from #359, DB schema 27 | Per-call actor attribution for shared MCP sessions (fork issue ec1e); Henry consented to the schema change 2026-09-14 | Modify; when upstream merges #363/#359 take theirs wholesale, otherwise keep ours. Hosted daemon must be upgraded to schema 27 before any fork binary talks to it |
 
 | 2026-09-13 | Frontend wave 1: attention and Ready views, close evidence and actions, project navigation, scoped capture, ID layout, tests and acceptance report | Make agent state and completion evidence visible and improve navigation at scale; acceptance remains blocked on the A5 CLI output contract | Modify+Addition; keep ours on conflict, new components preferred over edits to hot files |
 
