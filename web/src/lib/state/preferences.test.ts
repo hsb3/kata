@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   defaultPreferences,
@@ -8,6 +8,12 @@ import {
 } from './preferences'
 
 describe('origin-local preferences', () => {
+  it('defaults to side by side at wide desktop widths', () => {
+    vi.stubGlobal('innerWidth', 1440)
+    expect(loadPreferences(new MapStorage()).splitDirection).toBe('horizontal')
+    vi.unstubAllGlobals()
+  })
+
   it('defaults to the source stacked layout and pixel sash size', () => {
     expect(loadPreferences(new MapStorage())).toMatchObject({
       splitDirection: 'vertical',

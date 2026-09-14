@@ -9,8 +9,9 @@ import {
 } from './columns'
 
 describe('Kata task column visibility', () => {
-  it('defaults every optional column to visible', () => {
+  it('defaults attention to inline and existing columns to visible', () => {
     expect(defaultKataTaskColumnVisibility()).toEqual({
+      attention: false,
       updated: true,
       priority: true,
       due: true,
@@ -26,6 +27,7 @@ describe('Kata task column visibility', () => {
     }
 
     expect(loadKataTaskColumnVisibility(storage)).toEqual({
+      attention: false,
       updated: true,
       priority: false,
       due: false,
@@ -56,7 +58,7 @@ describe('Kata task column visibility', () => {
   it('persists visible keys and tolerates write failures', () => {
     const setItem = vi.fn()
     persistKataTaskColumnVisibility(
-      { updated: true, priority: false, due: true, owner: false, tags: false },
+      { attention: false, updated: true, priority: false, due: true, owner: false, tags: false },
       { getItem: vi.fn(), setItem },
     )
     expect(setItem).toHaveBeenCalledWith(
@@ -73,6 +75,7 @@ describe('Kata task column visibility', () => {
       }),
     ).not.toThrow()
     expect(KATA_OPTIONAL_TASK_COLUMNS.map((column) => column.id)).toEqual([
+      'attention',
       'updated',
       'priority',
       'due',

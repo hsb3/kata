@@ -225,8 +225,8 @@ export function snapshotIntentForRoute(
 ): UISnapshotIntent {
   const view = route.view ?? (route.projectUID || route.issueUID ? 'all-open' : 'inbox')
   const intent: UISnapshotIntent = {
-    view,
-    statuses: [...route.filters.status],
+    view: view === 'needs-you' || view === 'ready' ? 'all-open' : view,
+    statuses: view === 'ready' ? ['ready'] : [...route.filters.status],
     owners: [...route.filters.owner],
     labels: [...route.filters.label],
     relationships: [...route.filters.relationship],

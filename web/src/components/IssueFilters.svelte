@@ -98,6 +98,18 @@
       />
     </div>
 
+    <label class="filter-control filter-control-input">
+      <span class="kit-sr-only">Attention</span>
+      <select
+        aria-label="Attention"
+        value={draft.attention ?? ''}
+        onchange={(event) => emit('attention', { attention: inputValue(event) || undefined })}
+      >
+        <option value="">Any attention</option><option value="ok">ok</option><option
+          value="needs-human">needs-human</option
+        ><option value="stuck">stuck</option>
+      </select>
+    </label>
     <div class="filter-control filter-control-status">
       <span class="kit-sr-only">Status</span>
       <SelectDropdown
@@ -167,7 +179,8 @@
     min-width: 0;
   }
 
-  input {
+  input,
+  select {
     box-sizing: border-box;
     min-width: 0;
     height: 28px;
@@ -180,7 +193,8 @@
     padding: 0 6px;
   }
 
-  input:focus {
+  input:focus,
+  select:focus {
     outline: 2px solid var(--accent-blue);
     outline-offset: -1px;
   }

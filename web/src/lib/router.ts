@@ -7,11 +7,14 @@ export const systemViews = [
   'deadlines',
   'all-open',
   'logbook',
+  'needs-you',
+  'ready',
 ] as const
 
 export type SystemView = (typeof systemViews)[number]
 
 export interface ShareableFilters {
+  attention?: string | undefined
   status: string[]
   owner: string[]
   label: string[]
@@ -87,6 +90,7 @@ export function serializeRoute(route: KataRoute, routePath = applicationRoutePat
   ] as const) {
     for (const value of sortedUnique(values)) query.append(name, value)
   }
+  if (route.filters.attention) query.set('attention', route.filters.attention)
   if (route.filters.text) query.set('text', route.filters.text)
   const encoded = query.toString()
   return encoded ? `${routePath}?${encoded}` : routePath
@@ -103,6 +107,8 @@ function parseFilters(query: URLSearchParams): ShareableFilters {
     label: sortedUnique(query.getAll('label')),
     relationship: sortedUnique(query.getAll('relationship')),
   }
+  const attention = query.get('attention')
+  if (attention && ['ok', 'needs-human', 'stuck'].includes(attention)) filters.attention = attention
   const text = query.get('text')?.trim()
   if (text) filters.text = text
   return filters

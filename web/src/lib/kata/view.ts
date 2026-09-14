@@ -204,6 +204,30 @@ function buildLogbook(issues: KataTaskSummary[]): KataTaskGroup[] {
     .sort((a, b) => b.id.localeCompare(a.id))
 }
 
+function buildNeedsYou(issues: KataTaskSummary[], projects: ProjectLookup): KataTaskGroup[] {
+  const ordered = issues
+    .filter(
+      (issue) =>
+        issue.status === 'open' &&
+        ['stuck', 'needs-human'].includes(String(issue.metadata['work.attention'])),
+    )
+    .sort(
+      (a, b) =>
+        Number(b.metadata['work.attention'] === 'stuck') -
+          Number(a.metadata['work.attention'] === 'stuck') ||
+        a.created_at.localeCompare(b.created_at) ||
+        a.uid.localeCompare(b.uid),
+    )
+  const groups = new Map<string, KataTaskGroup>()
+  for (const issue of ordered) {
+    const id = `${issue.metadata['work.attention']}/${issue.project_uid}`
+    const group = groups.get(id) ?? { id, title: projectTitle(issue, projects), issues: [] }
+    group.issues.push(issue)
+    groups.set(id, group)
+  }
+  return [...groups.values()]
+}
+
 export function buildKataTaskView(options: BuildKataTaskViewOptions): KataTaskViewResponse {
   const today = options.today ?? localDateString()
   const projects = projectLookup(options.projects)
@@ -222,6 +246,10 @@ export function buildKataTaskView(options: BuildKataTaskViewOptions): KataTaskVi
     case 'deadlines':
       groups = buildDeadlines(options.issues, today)
       break
+    case 'needs-you':
+      groups = buildNeedsYou(options.issues, projects)
+      break
+    case 'ready':
     case 'all':
       groups = buildAll(options.issues, projects)
       break

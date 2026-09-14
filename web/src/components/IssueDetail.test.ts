@@ -79,6 +79,102 @@ describe('IssueDetail', () => {
     vi.useRealTimers()
   })
 
+  it('claims an unowned issue directly from read detail', async () => {
+    const onClaimIssue = vi.fn(async () => true)
+    renderDetail({ onClaimIssue })
+    await fireEvent.click(screen.getByRole('button', { name: 'Claim' }))
+    expect(onClaimIssue).toHaveBeenCalledWith('issue-1')
+  })
+
+  it('shows attention and completion without entering edit mode', () => {
+    renderDetail({
+      issue: makeIssue({
+        metadata: { 'work.attention': 'needs-human', 'work.attention_msg': 'Need runner access' },
+      }),
+    })
+    expect(screen.getByText('needs-human')).toBeTruthy()
+    expect(screen.getByText('Need runner access')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Complete' })).toBeTruthy()
+  })
+
+  it('renders close evidence and offers reopen instead of edit', () => {
+    renderDetail({
+      issue: makeIssue({ status: 'closed', closed_reason: 'done' }),
+      events: [
+        {
+          event_id: 2,
+          event_uid: 'event-close',
+          origin_instance_uid: 'instance-example',
+          project_id: 1,
+          project_uid: 'project-1',
+          project_name: 'spoke-project',
+          type: 'issue.closed',
+          actor: 'example-agent',
+          created_at: '2026-06-01T12:31:00Z',
+          payload: {
+            reason: 'done',
+            message: 'Fixed the output and checked the help text.',
+            evidence: [
+              { type: 'commit', sha: '3f2a9c1' },
+              { type: 'test', command: 'go test ./internal/cli' },
+            ],
+          },
+        },
+      ],
+    })
+    expect(
+      within(document.querySelector('.shared-detail') as HTMLElement).getByText(
+        'Fixed the output and checked the help text.',
+      ),
+    ).toBeTruthy()
+    expect(
+      within(document.querySelector('.shared-detail') as HTMLElement).getByText('3f2a9c1'),
+    ).toBeTruthy()
+    expect(
+      within(document.querySelector('.shared-detail') as HTMLElement).getByText(
+        'go test ./internal/cli',
+      ),
+    ).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Edit issue' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Reopen' })).toBeTruthy()
+  })
+
+  it('submits repeatable audit evidence from read detail and fences stale actions', async () => {
+    const onCloseIssue = vi.fn(async () => true)
+    const view = renderDetail({ onCloseIssue })
+    await fireEvent.click(screen.getByRole('button', { name: 'Complete' }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getAllByRole('radio')).toHaveLength(5)
+    await fireEvent.click(within(dialog).getByRole('radio', { name: /Audit/ }))
+    expect(within(dialog).queryByRole('option', { name: 'Test command' })).toBeNull()
+    await fireEvent.input(within(dialog).getByLabelText('Evidence value'), {
+      target: { value: 'No changes required after review' },
+    })
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Add evidence' }))
+    await fireEvent.change(within(dialog).getAllByLabelText('Evidence type')[1]!, {
+      target: { value: 'reviewed-paths' },
+    })
+    await fireEvent.input(within(dialog).getAllByLabelText('Evidence value')[1]!, {
+      target: { value: 'docs/reference/cli.md' },
+    })
+    await fireEvent.input(within(dialog).getByLabelText(/Completion note/), {
+      target: { value: 'Reviewed the behavior and confirmed no changes are needed.' },
+    })
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Complete' }))
+    expect(onCloseIssue).toHaveBeenCalledWith({
+      reason: 'audit-no-change',
+      message: 'Reviewed the behavior and confirmed no changes are needed.',
+      evidence: [
+        { type: 'no-change-audit', rationale: 'No changes required after review' },
+        { type: 'reviewed-paths', paths: ['docs/reference/cli.md'] },
+      ],
+    })
+    await view.rerender({ actionsDisabled: true, authorityBlocked: true })
+    expect((screen.getByRole('button', { name: 'Complete' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    )
+  })
+
   it('renders the package-owned presentation before entering Kata editing mode', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-06-01T13:00:00Z'))

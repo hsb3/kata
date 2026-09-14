@@ -116,3 +116,43 @@ function relativeLuminance(cssColor: string): number {
   })
   return 0.2126 * linear[0]! + 0.7152 * linear[1]! + 0.0722 * linear[2]!
 }
+
+test('attention queue, ready queue, and close evidence remain accessible', async ({
+  page,
+  kata,
+}) => {
+  const credentials = await kata.launch(page)
+  await kata.seedIssue(page, credentials, {
+    title: 'Accessible attention request',
+    metadata: { 'work.attention': 'needs-human', 'work.attention_msg': 'Review the output' },
+  })
+  const closed = await kata.seedIssue(page, credentials, { title: 'Accessible close record' })
+  const result = await kata.request(
+    page,
+    credentials,
+    'POST',
+    `/api/v1/projects/${closed.project_id}/issues/${closed.short_id}/actions/close`,
+    {
+      actor: 'example-agent',
+      reason: 'done',
+      message: 'Reviewed the rendered output and confirmed the expected behavior.',
+      evidence: [{ type: 'test', command: 'make test' }],
+    },
+  )
+  expect(result.ok(), await result.text()).toBe(true)
+  for (const route of [
+    '?view=needs-you',
+    '?view=ready',
+    '?view=logbook',
+    `?view=logbook&issue=${closed.uid}`,
+  ]) {
+    await page.goto(`${kata.origin}/kata${route}`)
+    await expect(page.getByRole('button', { name: 'New task', exact: true })).toBeVisible()
+    const results = await new AxeBuilder({ page }).analyze()
+    expect(
+      results.violations.filter(
+        (violation) => violation.impact === 'critical' || violation.impact === 'serious',
+      ),
+    ).toEqual([])
+  }
+})

@@ -21,7 +21,6 @@
   import ColumnPicker from './ColumnPicker.svelte'
   import {
     KATA_OPTIONAL_TASK_COLUMNS,
-    defaultKataTaskColumnVisibility,
     loadKataTaskColumnVisibility,
     persistKataTaskColumnVisibility,
     type KataOptionalTaskColumn,
@@ -84,6 +83,7 @@
     Record<KataOptionalTaskColumn, string | null>
   > = {
     wide: {
+      attention: 'minmax(90px, 110px)',
       updated: 'minmax(64px, 80px)',
       priority: 'minmax(68px, 80px)',
       due: 'minmax(56px, 70px)',
@@ -91,6 +91,7 @@
       tags: 'minmax(96px, 200px)',
     },
     medium: {
+      attention: 'minmax(90px, 110px)',
       updated: 'minmax(64px, 80px)',
       priority: 'minmax(68px, 80px)',
       due: 'minmax(56px, 70px)',
@@ -98,6 +99,7 @@
       tags: null,
     },
     compact: {
+      attention: 'minmax(90px, 110px)',
       updated: 'minmax(60px, 76px)',
       priority: 'minmax(64px, 78px)',
       due: 'minmax(54px, 68px)',
@@ -105,6 +107,7 @@
       tags: null,
     },
     narrow: {
+      attention: 'minmax(90px, 110px)',
       updated: 'minmax(58px, 72px)',
       priority: 'minmax(62px, 74px)',
       due: null,
@@ -199,7 +202,10 @@
     }
     const allIssues = groups.flatMap((group) => group.issues)
     return groups
-      .map((group) => ({ ...group, issues: topLevelIssues(group.issues, allIssues) }))
+      .map((group) => ({
+        ...group,
+        issues: topLevelIssues(group.issues, allIssues),
+      }))
       .filter((group) => group.issues.length > 0)
   })
 
@@ -303,7 +309,11 @@
   }
 
   function showAllColumns(): void {
-    setColumnVisibility(defaultKataTaskColumnVisibility())
+    setColumnVisibility(
+      Object.fromEntries(
+        KATA_OPTIONAL_TASK_COLUMNS.map(({ id }) => [id, true]),
+      ) as KataTaskColumnVisibility,
+    )
   }
 
   function viewTitle(view: KataCurrentView): string {
@@ -856,6 +866,7 @@
             <ChevronDownIcon size={11} strokeWidth={2} />
           {/if}
         </button>
+        {#if columnVisibility.attention}<span class="col col-static">Attention</span>{/if}
         {#if columnVisibility.updated}
           <button
             class="col col-updated"
@@ -958,7 +969,13 @@
       data-uid={issue.uid}
       onclick={() => selectNow(issue)}
     >
-      <span class="cell cell-id"><span class="id-badge">{displayId(issue)}</span></span>
+      <span class="cell cell-id"
+        ><span class="id-badge" title={displayId(issue)}
+          >{#if !isProjectScoped}<span class="id-prefix">{issue.project_name}#</span>{/if}<span
+            class="id-suffix">{issue.short_id}</span
+          ></span
+        ></span
+      >
       <span class="cell cell-title">
         {#if expandable}
           <!-- A span (not a button) inside the row's outer <button> — nesting
@@ -976,8 +993,29 @@
         {:else}
           <span class="chevron chevron--placeholder" aria-hidden="true"></span>
         {/if}
-        <span class="title-text" id={titleId}>{issue.title}</span>
+        <span class="title-content">
+          <span class="title-text" id={titleId}>{issue.title}</span>
+          <span class="row-signals">
+            {#if issue.status === 'open' && issue.metadata['work.attention'] && !columnVisibility.attention}<span
+                class="attention-chip"
+                title={String(issue.metadata['work.attention_msg'] ?? '')}
+                >{String(issue.metadata['work.attention'])}</span
+              >{/if}
+            {#if issue.status === 'open' && (issue.blocked_by?.length ?? 0) > 0}<span
+                class="blocked-marker"
+                aria-label="Blocked">⊘ {issue.blocked_by!.length} blockers</span
+              >{/if}
+            {#if issue.status === 'closed' && issue.closed_reason}<span class="reason-chip"
+                >{issue.closed_reason}</span
+              >{/if}
+          </span>
+        </span>
       </span>
+      {#if columnVisibility.attention}<span
+          class="cell cell-attention"
+          title={String(issue.metadata['work.attention_msg'] ?? '')}
+          >{issue.status === 'open' ? String(issue.metadata['work.attention'] ?? '') : ''}</span
+        >{/if}
       {#if columnVisibility.updated}
         <span class="cell cell-updated" title={issue.updated_at}>
           {relativeTime(issue.updated_at)}
@@ -1326,7 +1364,30 @@
     align-items: center;
   }
 
+  .id-prefix {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .id-suffix {
+    flex-shrink: 0;
+  }
+  .attention-chip,
+  .blocked-marker,
+  .reason-chip {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    border: 1px solid var(--border-default);
+    border-radius: 4px;
+    padding: 0 4px;
+  }
+  .blocked-marker {
+    color: var(--accent-amber);
+  }
   .id-badge {
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     display: inline-flex;
     align-items: center;
     height: 18px;
@@ -1363,6 +1424,20 @@
     word-break: break-word;
   }
 
+  .title-content {
+    min-width: 0;
+    flex: 1;
+    display: grid;
+    gap: 2px;
+  }
+  .row-signals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .row-signals:empty {
+    display: none;
+  }
   .title-text {
     flex: 1;
     min-width: 0;

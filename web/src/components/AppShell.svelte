@@ -1,7 +1,5 @@
 <script lang="ts">
   import { DetailDrawer, IconButton, TopBar, type TypeaheadOption } from '@kenn-io/kit-ui'
-  import LayoutPanelLeftIcon from '@lucide/svelte/icons/layout-panel-left'
-  import LayoutPanelTopIcon from '@lucide/svelte/icons/layout-panel-top'
   import MonitorIcon from '@lucide/svelte/icons/monitor'
   import MenuIcon from '@lucide/svelte/icons/menu'
   import MoonIcon from '@lucide/svelte/icons/moon'
@@ -27,6 +25,7 @@
   } from '../lib/kata/types'
   import type { UISnapshot } from '../lib/state/snapshot'
   import { defaultPreferences, type Preferences } from '../lib/state/preferences'
+  import ActionQueue from './ActionQueue.svelte'
   import IssueCollection from './IssueCollection.svelte'
   import IssueDetail from './IssueDetail.svelte'
   import IssueFilters from './IssueFilters.svelte'
@@ -60,6 +59,7 @@
     onPreferencesChange?: ((preferences: Preferences) => void) | undefined
     onSelectDaemon?: ((id: string) => void) | undefined
     onNavigate: (route: AppRoute) => void | Promise<void>
+    onReadAttentionCount?: (() => Promise<number>) | undefined
     onCreateProject: (name: string) => Promise<KataTaskMutationResponse>
     onDesignateInbox: (projectUID: string) => Promise<void>
     onCreateIssue: (title: string) => void | Promise<void>
@@ -68,6 +68,7 @@
     onPatchMetadata: (uid: string, patch: Record<string, unknown>) => boolean | Promise<boolean>
     onAddComment: (uid: string, body: string) => boolean | Promise<boolean>
     onEditIssue: (uid: string, patch: KataTaskEditPatch) => boolean | Promise<boolean>
+    onClaimIssue?: ((uid: string) => boolean | Promise<boolean>) | undefined
     onAssignOwner: (uid: string, owner: string) => boolean | Promise<boolean>
     onUnassignOwner: (uid: string) => boolean | Promise<boolean>
     onSetPriority: (uid: string, priority: number | null) => boolean | Promise<boolean>
@@ -109,6 +110,7 @@
     onPreferencesChange = () => {},
     onSelectDaemon = () => {},
     onNavigate,
+    onReadAttentionCount,
     onCreateProject,
     onDesignateInbox,
     onCreateIssue,
@@ -117,6 +119,7 @@
     onPatchMetadata,
     onAddComment,
     onEditIssue,
+    onClaimIssue,
     onAssignOwner,
     onUnassignOwner,
     onSetPriority,
@@ -129,6 +132,23 @@
     onPatchRecurrence,
     onDeleteRecurrence,
   }: Props = $props()
+
+  let needsYouCount = $state<number | undefined>()
+  $effect(() => {
+    void snapshot.cursor
+    void activeDaemonID
+    needsYouCount = undefined
+    if (!onReadAttentionCount || stale) return
+    let canceled = false
+    void onReadAttentionCount()
+      .then((count) => {
+        if (!canceled) needsYouCount = count
+      })
+      .catch(() => {})
+    return () => {
+      canceled = true
+    }
+  })
 
   let captureOpen = $state(false)
   let inboxChooserOpen = $state(false)
@@ -244,7 +264,7 @@
 
   function beginNewTask(): void {
     if (!canMutate || mutationPending) return
-    if (hasInbox) captureOpen = true
+    if (selectedProject || hasInbox) captureOpen = true
     else inboxChooserOpen = true
   }
 
@@ -279,6 +299,7 @@
       status: statusFilter(current.filters.status, defaults.status),
       owner: current.filters.owner.length === 1 ? current.filters.owner[0]! : '',
       label: current.filters.label.length === 1 ? current.filters.label[0]! : '',
+      attention: current.filters.attention,
       query: current.filters.text ?? '',
       relationships: [...current.filters.relationship],
     }
@@ -321,6 +342,7 @@
             : []
           : [...route.filters.label],
       relationship: [...(filters.relationships ?? [])],
+      attention: filters.attention,
     }
     if (filters.query.trim()) result.text = filters.query.trim()
     return result
@@ -340,6 +362,8 @@
         { name: 'deadlines', label: 'Deadlines' },
         { name: 'all', label: 'All Open' },
         { name: 'logbook', label: 'Logbook' },
+        { name: 'needs-you', label: 'Needs you' },
+        { name: 'ready', label: 'Ready' },
       ].find((view) => view.name === viewName)?.label ?? 'Kata'
     )
   }
@@ -348,6 +372,13 @@
 {#snippet navigationSidebar()}
   <Sidebar
     {areas}
+    needsYouCount={onReadAttentionCount
+      ? needsYouCount
+      : projection.issues.filter(
+          (issue) =>
+            issue.status === 'open' &&
+            ['needs-human', 'stuck'].includes(String(issue.metadata['work.attention'])),
+        ).length}
     projects={projection.projects}
     currentView={{
       name: currentView.view,
@@ -412,21 +443,15 @@
             <MonitorIcon size={15} strokeWidth={1.8} aria-hidden="true" />
           {/if}
         </IconButton>
-        <IconButton
-          ariaLabel={preferences.splitDirection === 'vertical'
+        <button
+          type="button"
+          onclick={toggleSplitDirection}
+          aria-label={preferences.splitDirection === 'vertical'
             ? 'Switch to side-by-side layout'
             : 'Switch to stacked layout'}
-          title={preferences.splitDirection === 'vertical'
-            ? 'Side-by-side (list left, detail right)'
-            : 'Stacked (list top, detail bottom)'}
-          onclick={toggleSplitDirection}
+          class="layout-label"
+          >{preferences.splitDirection === 'vertical' ? 'Side-by-side' : 'Stacked'}</button
         >
-          {#if preferences.splitDirection === 'vertical'}
-            <LayoutPanelLeftIcon size={15} strokeWidth={1.8} aria-hidden="true" />
-          {:else}
-            <LayoutPanelTopIcon size={15} strokeWidth={1.8} aria-hidden="true" />
-          {/if}
-        </IconButton>
         <button
           type="button"
           class="accent-button header-action"
@@ -510,6 +535,37 @@
           The reachable graph is unavailable from the current authority.
         </section>
       {/if}
+    {:else if viewName === 'needs-you' || viewName === 'ready'}
+      {#if viewName === 'ready'}
+        <label class="action-scope"
+          >Project
+          <select
+            aria-label="Ready project"
+            value={route.projectUID ?? ''}
+            onchange={(event) =>
+              updateFilters(
+                {
+                  ...searchFilters,
+                  scope: event.currentTarget.value
+                    ? { kind: 'project', project_uid: event.currentTarget.value }
+                    : { kind: 'all' },
+                },
+                'scope',
+              )}
+          >
+            <option value="">All projects</option
+            >{#each projection.projects as project (project.uid)}<option value={project.uid}
+                >{project.name}</option
+              >{/each}
+          </select>
+        </label>
+      {/if}
+      <ActionQueue
+        title={viewName === 'needs-you' ? 'Needs you' : 'Ready'}
+        groups={currentView.groups}
+        {selectedIssueUID}
+        onSelect={(issue) => selectIssue(issue.uid)}
+      />
     {:else}
       <IssueFilters
         filters={searchFilters}
@@ -561,6 +617,7 @@
         {onPatchMetadata}
         {onAddComment}
         {onEditIssue}
+        {onClaimIssue}
         {onAssignOwner}
         {onUnassignOwner}
         {onSetPriority}
@@ -605,6 +662,27 @@
 />
 
 <style>
+  .action-scope {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    align-items: center;
+  }
+  .action-scope select {
+    min-width: 0;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
+    border-radius: 4px;
+    padding: 6px;
+  }
+  .layout-label {
+    background: transparent;
+    border: 0;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font: inherit;
+  }
   .kata-feature {
     height: 100%;
     min-height: 0;

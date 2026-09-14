@@ -86,6 +86,33 @@ describe('IssueCollection', () => {
     vi.useRealTimers()
   })
 
+  it('renders attention, active blockers, close reason and optional attention column', async () => {
+    const marked = task({
+      uid: 'marked',
+      metadata: { 'work.attention': 'stuck', 'work.attention_msg': 'Waiting for a decision' },
+      blocked_by: [{ uid: 'blocker', short_id: 'abcd' }],
+    })
+    const closed = task({ uid: 'closed', status: 'closed', closed_reason: 'wontfix' })
+    render(IssueCollection, {
+      props: {
+        currentView: {
+          name: 'all',
+          groups: [{ id: 'all', title: 'All', issues: [marked, closed] }],
+        },
+        onSelect: vi.fn(),
+      },
+    })
+    expect(screen.getByText('stuck')).toBeTruthy()
+    expect(screen.getByText(/1 blockers/)).toBeTruthy()
+    expect(screen.getByText('wontfix')).toBeTruthy()
+    await fireEvent.click(screen.getByRole('button', { name: /Columns/ }))
+    expect(screen.getByRole('checkbox', { name: 'Attention' })).toBeTruthy()
+    await fireEvent.click(screen.getByRole('button', { name: 'Show all' }))
+    expect((screen.getByRole('checkbox', { name: 'Attention' }) as HTMLInputElement).checked).toBe(
+      true,
+    )
+  })
+
   it('expands snapshot-bounded descendants without loading task detail', async () => {
     const parent = task({
       uid: 'issue-parent',
@@ -155,7 +182,7 @@ describe('IssueCollection', () => {
     expect(row.getAttribute('aria-current')).toBe('true')
     expect(row.classList.contains('selected')).toBe(true)
     expect(within(row).getByText('Review example project')).toBeTruthy()
-    expect(within(row).getByText('example-project#pay-rent')).toBeTruthy()
+    expect(within(row).getByTitle('example-project#pay-rent')).toBeTruthy()
     expect(within(row).getByText('P0')).toBeTruthy()
     expect(within(row).getByText('home · monthly')).toBeTruthy()
     expect(within(row).getByText('user-a')).toBeTruthy()
@@ -339,6 +366,7 @@ describe('IssueCollection', () => {
     expect(within(header).getByText('Owner')).toBeTruthy()
     expect(within(header).getByText('Tags')).toBeTruthy()
     expect(JSON.parse(localStorage.getItem(KATA_TASK_COLUMNS_STORAGE_KEY)!)).toEqual([
+      'attention',
       'updated',
       'priority',
       'due',

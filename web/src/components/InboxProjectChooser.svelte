@@ -14,6 +14,7 @@
   }
 
   let { open, projects, onClose, onSelect }: Props = $props()
+  let query = $state('')
   let pending = $state<string | undefined>()
 
   async function choose(projectUID: string): Promise<void> {
@@ -32,8 +33,11 @@
   <p class="chooser-copy">
     New tasks are captured in one Inbox project. Choose it once to continue.
   </p>
+  <input aria-label="Filter inbox projects" placeholder="Filter projects" bind:value={query} />
   <div class="project-list">
-    {#each projects as project (project.uid)}
+    {#each projects.filter((project) => project.name
+        .toLowerCase()
+        .includes(query.toLowerCase())) as project (project.uid)}
       <button
         type="button"
         class="project-choice"

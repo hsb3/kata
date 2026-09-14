@@ -76,6 +76,24 @@ describe('Sidebar', () => {
     vi.restoreAllMocks()
   })
 
+  it('filters projects and persists pins without losing hidden projects', async () => {
+    window.localStorage.clear()
+    const view = renderSidebar()
+    await fireEvent.input(screen.getByRole('textbox', { name: 'Filter projects' }), {
+      target: { value: 'example-project' },
+    })
+    expect(document.querySelectorAll('.project-select-button')).toHaveLength(1)
+    await fireEvent.click(screen.getByRole('button', { name: 'Pin example-project' }))
+    view.unmount()
+    renderSidebar()
+    expect(screen.getByRole('button', { name: 'Unpin example-project' })).toBeTruthy()
+    await fireEvent.input(screen.getByRole('textbox', { name: 'Filter projects' }), {
+      target: { value: 'Inbox' },
+    })
+    expect(document.querySelector('.project-select-button')?.textContent).toContain('Inbox')
+    window.localStorage.clear()
+  })
+
   it('renders system views, expanded area groups, and project creation in order', () => {
     renderSidebar()
 
@@ -87,7 +105,7 @@ describe('Sidebar', () => {
 
     expect(personal.getAttribute('aria-expanded')).toBe('true')
     expect(work.getAttribute('aria-expanded')).toBe('true')
-    const ordered = [inbox, personal, work, create]
+    const ordered = [inbox, create, personal, work]
     for (let index = 0; index < ordered.length - 1; index += 1) {
       expect(ordered[index]!.compareDocumentPosition(ordered[index + 1]!)).toBe(
         Node.DOCUMENT_POSITION_FOLLOWING,

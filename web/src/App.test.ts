@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App.svelte'
 import { preferencesStorageKey } from './lib/state/preferences'
 
+vi.mock('./lib/kata/attention', () => ({ readAttentionCount: async () => 0 }))
+
 describe('App', () => {
   beforeEach(() => {
     sessionStorage.clear()

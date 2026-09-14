@@ -2,6 +2,7 @@
   import { Button, cleanupTheme, initTheme, setThemeMode } from '@kenn-io/kit-ui'
   import { onMount } from 'svelte'
 
+  import { readAttentionCount } from './lib/kata/attention'
   import AppShell from './components/AppShell.svelte'
   import KataDaemonSwitcher from './components/KataDaemonSwitcher.svelte'
   import LaunchHint from './components/LaunchHint.svelte'
@@ -12,6 +13,7 @@
   import {
     addLabel as addLabelRequest,
     assignIssue,
+    claimIssue,
     closeIssue as closeIssueRequest,
     createComment,
     createIssue as createIssueRequest,
@@ -169,7 +171,8 @@
       if (authority?.snapshot) stream.start(authority.cursor)
     },
     wallClockSensitive: () =>
-      route.kind !== 'route-error' && route.filters.status.includes('ready'),
+      route.kind !== 'route-error' &&
+      (route.view === 'ready' || route.filters.status.includes('ready')),
   })
   const unsubscribe = snapshots.subscribe((state) => {
     authority = { ...state }
@@ -310,8 +313,10 @@
   }
 
   async function createIssue(title: string): Promise<void> {
-    const inbox = authority?.snapshot?.catalog?.find(
-      ({ project }) => project.metadata.role === 'inbox',
+    const inbox = authority?.snapshot?.catalog?.find(({ project }) =>
+      route.kind === 'kata' && route.projectUID
+        ? project.uid === route.projectUID
+        : project.metadata.role === 'inbox',
     )?.project
     if (!inbox) throw new Error('Task inbox project is not available.')
 
@@ -528,6 +533,17 @@
         { projectId: target.project_id, ref: target.ref },
         context.body({ to_project_uid: toProjectUID }, requestActor),
         { headers: context.headers },
+      ),
+    )
+  }
+
+  async function claimOwner(uid: string): Promise<boolean> {
+    const target = selectedMutationTarget(uid)
+    if (!target) return false
+    return runMutation({}, (context) =>
+      claimIssue(
+        { projectId: target.project_id, ref: target.ref },
+        context.body({ actor: '', if_unowned: true }, requestActor),
       ),
     )
   }
@@ -982,6 +998,7 @@
         onPreferencesChange={updatePreferences}
         ownerOptions={(references?.owners ?? []).map((owner) => ({ name: owner, label: owner }))}
         onNavigate={navigate}
+        onReadAttentionCount={readAttentionCount}
         onCreateProject={createProject}
         onDesignateInbox={designateInbox}
         onCreateIssue={createIssue}
@@ -990,6 +1007,7 @@
         onPatchMetadata={patchMetadata}
         onAddComment={addComment}
         onEditIssue={editIssue}
+        onClaimIssue={claimOwner}
         onAssignOwner={assignOwner}
         onUnassignOwner={unassignOwner}
         onSetPriority={setPriority}
