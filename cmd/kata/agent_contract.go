@@ -24,13 +24,13 @@ digraph kata {
     label="Working a kata-tracked issue";
     claim  [label="On claim or start, mark it actively tracked:\nkata meta set <ref> work.attention ok\nIn-flight work becomes visible to coordinators\nand dashboards from the moment it is grabbed."];
     branch [label="If the work happens on a dedicated branch, stamp it once:\nkata meta set <ref> work.branch <branch>\nor bind at creation:\nkata create ... --meta work.branch=<branch> --idempotency-key <key>"];
-    live   [label="Keep your live state truthful on the issue:\nkata meta set <ref> work.attention stuck|needs-human|ok\nwith a one-line kata meta set <ref> work.attention_msg \"<why>\"\nRaise stuck when you cannot proceed, needs-human when you want\ninput or review (you may keep working), and clear back to ok\nwhen unblocked."];
+    live   [label="Keep your live state truthful on the issue:\nkata meta set <ref> work.attention stuck|needs-human|ok\nwith a one-line kata meta set <ref> work.attention_msg \"<why>\"\nRaise stuck when you cannot proceed, needs-human when you want\ninput or review (you may keep working), and clear back to ok\nwhen unblocked.\nRequest attention from an actor or teammate:\nkata notify <ref> --to <actor>[/<teammate>] --message <reason>"];
     claim -> branch -> live;
   }
 
   subgraph cluster_delegate {
     label="Delegating work as separate issues (fan-out/join)";
-    fanout [label="Create each delegated child with\n--parent <epic-or-coordinating-issue>,\n--meta work.branch=..., and an idempotency key;\ncapture refs from --json (.issue.short_id).\nAdd dependency links only for actual prerequisites."];
+    fanout [label="If using subagents, give each child a distinct KATA_TEAMMATE\nand KATA_INBOX_USER=<actor>/<teammate>; retain the actor identity.\nThis applies to same-issue swarms and separately tracked child issues.\nUse the handle for comments and new issues (--teammate overrides).\nNew issues store metadata.teammate; comments store teammate.\nFor a delegated child issue, use --parent <coordinating-issue>,\n--meta work.branch=<branch>, and an idempotency key; capture .issue.short_id.\nAdd dependency links only for actual prerequisites.\nRequest attention: kata notify <ref> --to <actor>[/<teammate>] --message <reason>.\nThe harness wakes the addressed runtime.\nRead the request: kata inbox --for <actor>[/<teammate>].\nClear after handling: kata notify <ref> --to <actor>[/<teammate>] --clear."];
     join   [label="Join with kata wait <refs> --until attention --any\nMatches needs-human or stuck; a close also completes the wait,\nand the reported reason distinguishes which. Use --timeout so a\nwrapper can tell timeout from satisfaction."];
     coord  [label="As coordinator you read work.* —\nyou never write it on issues you delegated."];
     fanout -> join -> coord;
