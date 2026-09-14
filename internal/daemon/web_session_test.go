@@ -87,6 +87,7 @@ func TestWebLocalSessionIsLimitedToSPAOperations(t *testing.T) {
 		{name: "proxied deleted issue lookup", method: http.MethodGet, path: "/api/v1/ui/proxy/api/v1/projects/7/issues/abc4?include_deleted=true", want: http.StatusForbidden},
 		{name: "issue edit", method: http.MethodPatch, path: "/api/v1/projects/7/issues/abc4", want: http.StatusNoContent},
 		{name: "recurrence deletion", method: http.MethodDelete, path: "/api/v1/projects/7/recurrences/01J00000000000000000000001", want: http.StatusNoContent},
+		{name: "issue claim", method: http.MethodPost, path: "/api/v1/projects/7/issues/abc4/actions/claim", want: http.StatusNoContent},
 		{name: "federation", method: http.MethodPost, path: "/api/v1/federation/replicas", want: http.StatusForbidden},
 		{name: "project purge", method: http.MethodPost, path: "/api/v1/projects/7/actions/purge", want: http.StatusForbidden},
 		{name: "issue purge", method: http.MethodPost, path: "/api/v1/projects/7/issues/abc4/actions/purge", want: http.StatusForbidden},
