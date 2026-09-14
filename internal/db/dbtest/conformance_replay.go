@@ -45,9 +45,10 @@ func checkSnapshotReplayCore(t *testing.T, target db.Storage, backend Backend) e
 		return err
 	}
 	comment, _, err := source.CreateComment(ctx, db.CreateCommentParams{
-		IssueID: first.ID,
-		Author:  "reviewer",
-		Body:    "observable replay state",
+		IssueID:  first.ID,
+		Author:   "reviewer",
+		Teammate: "reviewer-7",
+		Body:     "observable replay state",
 	})
 	if err != nil {
 		return err
@@ -153,6 +154,7 @@ func checkSnapshotReplayCore(t *testing.T, target db.Storage, backend Backend) e
 	}
 	require.Len(t, comments, 1)
 	assert.Equal(t, comment.UID, comments[0].UID)
+	assert.Equal(t, "reviewer-7", comments[0].Teammate)
 	assert.Equal(t, "observable replay state", comments[0].Body)
 	labels, err := target.LabelsByIssue(ctx, gotFirst.ID)
 	if err != nil {
@@ -210,6 +212,28 @@ func checkSnapshotReplayCore(t *testing.T, target db.Storage, backend Backend) e
 	}
 	assert.Greater(t, createdAfterReplay.ID, project.ID,
 		"identity sequence must advance past imported project IDs")
+
+	for _, record := range records {
+		commentRecord, ok := record.(*db.CommentExport)
+		if !ok || commentRecord.UID != comment.UID {
+			continue
+		}
+		commentRecord.Teammate = "@invalid"
+		break
+	}
+	err = target.ImportReplay(ctx, records, db.ImportOptions{})
+	require.ErrorContains(t, err, "teammate")
+	gotFirst, err = target.IssueByUID(ctx, first.UID, db.IncludeDeletedNo)
+	if err != nil {
+		return fmt.Errorf("read replay issue after rejected teammate: %w", err)
+	}
+	comments, err = target.CommentsByIssue(ctx, gotFirst.ID)
+	if err != nil {
+		return fmt.Errorf("read replay comments after rejected teammate: %w", err)
+	}
+	require.Len(t, comments, 1)
+	assert.Equal(t, "reviewer-7", comments[0].Teammate,
+		"invalid replay must leave the prior target state intact")
 	return nil
 }
 

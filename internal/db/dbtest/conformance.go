@@ -423,6 +423,14 @@ var storageScenarios = []scenario{
 		run: checkFederationProjectionLifecycle,
 	},
 	{
+		name: "federation teammate materialization validation",
+		methods: []string{
+			"CreateProject", "InsertRemoteEvent", "IssueByUID",
+			"MaterializeFederatedProject", "UpsertFederationBinding",
+		},
+		run: checkFederationTeammateMaterializationValidation,
+	},
+	{
 		name: "federation ingest lifecycle",
 		methods: []string{
 			"AcquireClaim", "CommentsByIssue", "CreateProject", "EnableProjectFederation",
