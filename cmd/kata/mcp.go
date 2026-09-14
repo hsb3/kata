@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -96,9 +97,7 @@ func newMCPServeCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			health, err := requireDaemonAPIVersionHealth(
-				ctx, httpClient, baseURL, apiVersionMCPServer, "kata mcp serve",
-			)
+			health, err := requireMCPDaemonHealth(ctx, httpClient, baseURL)
 			if err != nil {
 				return err
 			}
@@ -194,6 +193,34 @@ func newMCPServeCmd() *cobra.Command {
 	command.Flags().StringVar(&httpTokenEnv, "http-token-env", "", "require an inbound bearer read from this environment variable")
 	command.Flags().BoolVar(&trustPrivateNetwork, "trust-private-network", false, "trust plaintext MCP HTTP on a non-loopback private network")
 	return command
+}
+
+// mcpStartupRetryBudget stays under the 30s connect timeout MCP clients such
+// as Claude Code apply; a stdio server that exits before initialize is not
+// retried by the client, so one network blip would disable the tools for the
+// whole client session.
+const (
+	mcpStartupRetryBudget   = 20 * time.Second
+	mcpStartupRetryInterval = time.Second
+)
+
+// requireMCPDaemonHealth retries transport failures (timeouts, refused or
+// reset connections) only; a daemon that answers with a rejection fails at
+// once.
+func requireMCPDaemonHealth(ctx context.Context, client *http.Client, baseURL string) (daemonAPIHealth, error) {
+	deadline := time.Now().Add(mcpStartupRetryBudget)
+	for {
+		health, err := requireDaemonAPIVersionHealth(ctx, client, baseURL, apiVersionMCPServer, "kata mcp serve")
+		var netErr net.Error
+		if err == nil || !errors.As(err, &netErr) || time.Now().Add(mcpStartupRetryInterval).After(deadline) {
+			return health, err
+		}
+		select {
+		case <-ctx.Done():
+			return health, err
+		case <-time.After(mcpStartupRetryInterval):
+		}
+	}
 }
 
 func startMCPIdleKeepalive(
