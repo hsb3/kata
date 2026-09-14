@@ -183,3 +183,39 @@ test('Needs you refreshes polling authority within 30 seconds', async ({ page, k
   expect(response.ok(), await response.text()).toBe(true)
   await expect(row).toHaveCount(0, { timeout: 30_000 })
 })
+
+test('merged teammate attribution survives read and edit detail', async ({ page, kata }) => {
+  const credentials = await kata.launch(page)
+  const issue = await kata.seedIssue(page, credentials, { title: 'Teammate attribution example' })
+  const response = await kata.request(
+    page,
+    credentials,
+    'POST',
+    `/api/v1/projects/${issue.project_id}/issues/${issue.short_id}/comments`,
+    {
+      actor: 'example-owner',
+      teammate: 'example-agent',
+      body: 'A teammate-authored acceptance note',
+    },
+  )
+  expect(response.ok(), await response.text()).toBe(true)
+  const snapshot = await kata.snapshot(
+    page,
+    credentials,
+    `selected_issue_uid=${issue.uid}&include_history=true`,
+  )
+  expect(
+    (snapshot.selected as { comments: Array<{ author: string; teammate?: string }> }).comments,
+  ).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ author: 'example-owner', teammate: 'example-agent' }),
+    ]),
+  )
+  await page.goto(`${kata.origin}/kata?issue=${issue.uid}`)
+  await expect(page.locator('.shared-detail')).toContainText('example-owner / example-agent')
+  await expect(page.getByRole('button', { name: 'Complete', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Edit issue', exact: true }).click()
+  await expect(page.getByRole('region', { name: 'Task detail', exact: true })).toContainText(
+    'example-owner / example-agent',
+  )
+})

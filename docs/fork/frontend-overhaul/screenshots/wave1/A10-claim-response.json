@@ -1,0 +1,10 @@
+{
+  "http_status": 403,
+  "body": {
+    "status": 403,
+    "error": {
+      "code": "web_local_operation_forbidden",
+      "message": "browser session authorization failed"
+    }
+  }
+}

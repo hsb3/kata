@@ -39,8 +39,7 @@ upstream `.kata.toml` binds to it unchanged); parent workstream `dev-journey#9bh
 | 2026-09-13 | cmd/kata/mcp.go: requireMCPDaemonHealth retries transport failures ≤20s at startup (05e06e6); docs/fork/mcp-actor-connect.md | Claude Code never retries a stdio server that exits before initialize | Modify; keep ours, re-apply if upstream reworks requireDaemonAPIVersionHealth; candidate for an upstream PR |
 | 2026-09-13 | docs/fork/frontend-overhaul/ (spec, seed.sh, screenshots) | Fork-only planning docs | Addition; keep ours |
 | 2026-09-14 | Upstream PR kenn-io/kata#363 teammate attribution merged ahead of upstream (4ebf0ec): CLI/MCP teammate field, KATA_TEAMMATE/KATA_INBOX_USER, notify/inbox prerequisite from #359, DB schema 27 | Per-call actor attribution for shared MCP sessions (fork issue ec1e); Henry consented to the schema change 2026-09-14 | Modify; when upstream merges #363/#359 take theirs wholesale, otherwise keep ours. Hosted daemon must be upgraded to schema 27 before any fork binary talks to it |
-
-| 2026-09-13 | Frontend wave 1: attention and Ready views, close evidence and actions, project navigation, scoped capture, ID layout, tests and acceptance report | Make agent state and completion evidence visible and improve navigation at scale; acceptance remains blocked on the A5 CLI output contract | Modify+Addition; keep ours on conflict, new components preferred over edits to hot files |
+| 2026-09-13 | Frontend wave 1: attention and Ready views, close evidence and actions, project navigation, scoped capture, ID layout, tests and acceptance report; integrated origin/main a91b7b2 with teammate attribution | Make agent state and completion evidence visible and improve navigation at scale; A5 uses persisted events, while owner-local Claim remains excluded by the existing daemon allowlist | Modify+Addition; keep ours on conflict, new components preferred over edits to hot files |
 
 ## Kept deliberately
 
