@@ -423,7 +423,7 @@ func closeReasonCondition() *jsonschema.Schema {
 			If: &jsonschema.Schema{
 				Required: []string{"reason"},
 				Properties: map[string]*jsonschema.Schema{
-					"reason": {Const: variants[i].Properties["reason"].Const},
+					"reason": variants[i].Properties["reason"].CloneSchemas(),
 				},
 			},
 			Then: variants[i],
