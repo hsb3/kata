@@ -3,7 +3,6 @@
 Start a local fork daemon with seeded demo data:
 
 ```sh
-cp docker/local/.env.example docker/local/.env
 ./docker/local/up.sh
 ```
 
