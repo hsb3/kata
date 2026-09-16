@@ -1,6 +1,6 @@
 // @vitest-environment-options { "url": "http://127.0.0.2/kata" }
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte'
 import { tick } from 'svelte'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -1517,7 +1517,9 @@ describe('App', () => {
 
     expect(document.documentElement.classList.contains('dark')).toBe(true)
     await fireEvent.click(await screen.findByRole('button', { name: 'Open workspace palette' }))
-    await fireEvent.click(screen.getByRole('button', { name: 'system' }))
+    await fireEvent.click(
+      within(screen.getByText('Appearance').parentElement!).getByRole('button', { name: 'system' }),
+    )
     expect(JSON.parse(localStorage.getItem(preferencesStorageKey) ?? '{}')).toEqual(
       expect.objectContaining({ theme: 'system', splitDirection: 'horizontal', splitSize: 520 }),
     )

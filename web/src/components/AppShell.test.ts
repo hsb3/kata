@@ -440,6 +440,8 @@ describe('AppShell', () => {
           splitSize: 420,
           sidebarCollapsed: false,
           collapsedGroups: [],
+          textSize: 'default',
+          fontFamily: 'system',
         },
         onPreferencesChange,
         ...mutationProps(),
@@ -531,6 +533,32 @@ describe('AppShell', () => {
     })
 
     expect(onCreateIssue).toHaveBeenCalledWith('New example task')
+  })
+
+  test('opens the sidebar project creator from the workspace palette', async () => {
+    render(AppShell, {
+      props: {
+        route: {
+          kind: 'kata',
+          view: 'inbox',
+          graph: false,
+          filters: { status: [], owner: [], label: [], relationship: [] },
+        },
+        snapshot: snapshot(),
+        loading: false,
+        ...mutationProps(),
+        onNavigate: vi.fn(),
+        onCreateProject: vi.fn(async () => ({ changed: true })),
+      },
+    })
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Open workspace palette' }))
+    await fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Workspace palette' })).getByRole('button', {
+        name: 'New project',
+      }),
+    )
+    expect(screen.getByRole('textbox', { name: 'New project name' })).not.toBeNull()
   })
 
   test('designates an Inbox from New task before opening quick capture', async () => {

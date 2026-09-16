@@ -59,6 +59,13 @@ describe('origin-local preferences', () => {
     })
   })
 
+  it('persists selected text size and font family', () => {
+    const storage = new MapStorage()
+    savePreferences({ ...defaultPreferences, textSize: 'large', fontFamily: 'mono' }, storage)
+
+    expect(loadPreferences(storage)).toMatchObject({ textSize: 'large', fontFamily: 'mono' })
+  })
+
   it('reports degraded origins without copying preference state', () => {
     expect(originStabilityWarning(false)).toContain('temporary browser origin')
     expect(originStabilityWarning(true)).toBeUndefined()

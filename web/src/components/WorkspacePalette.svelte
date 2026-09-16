@@ -33,6 +33,7 @@
     onPreferencesChange: (preferences: Preferences) => void
     onSelectDaemon: (id: string) => void
     onNewTask: () => void
+    onNewProject: () => void
     onOpenView: (name: 'inbox' | 'today' | 'ready' | 'all') => void
   }
 
@@ -59,6 +60,7 @@
     onPreferencesChange,
     onSelectDaemon,
     onNewTask,
+    onNewProject,
     onOpenView,
   }: Props = $props()
 
@@ -96,6 +98,14 @@
   function setGraphDirection(splitDirection: Preferences['splitDirection']): void {
     onPreferencesChange({ ...preferences, splitDirection })
   }
+
+  function setTextSize(textSize: Preferences['textSize']): void {
+    onPreferencesChange({ ...preferences, textSize })
+  }
+
+  function setFontFamily(fontFamily: Preferences['fontFamily']): void {
+    onPreferencesChange({ ...preferences, fontFamily })
+  }
 </script>
 
 <Modal
@@ -107,10 +117,33 @@
   onClose={close}
 >
   <div class="workspace-palette" bind:this={palette}>
+    {#if daemons.length > 0}
+      <section class="daemon-row" aria-label="Daemon selection">
+        <span>Daemon</span><KataDaemonSwitcher
+          {daemons}
+          activeId={activeDaemonID}
+          activeStatusLabel={daemonError ?? (reconnecting ? 'Reconnecting…' : undefined)}
+          activeStatusTone={daemonError ? 'error' : undefined}
+          disabled={daemonSwitching || mutationPending}
+          onSelect={onSelectDaemon}
+        />
+      </section>
+    {/if}
     <section aria-label="Search and filters">
       <div class="section-heading">
         <h2>Find tasks</h2>
-        <button type="button" onclick={onReset}>Reset filters</button>
+        <div class="action-group">
+          <button
+            data-palette-focus
+            type="button"
+            disabled={!canMutate || mutationPending}
+            onclick={onNewTask}>New task</button
+          >
+          <button type="button" disabled={!canMutate || mutationPending} onclick={onNewProject}
+            >New project</button
+          >
+          <button type="button" onclick={onReset}>Reset filters</button>
+        </div>
       </div>
       <p class="hint">Reset keeps the current project scope.</p>
       <IssueFilters {filters} {projects} onChange={onFiltersChange} />
@@ -136,12 +169,6 @@
     <section aria-label="Workspace actions">
       <h2>Workspace</h2>
       <div class="control-row">
-        <button
-          data-palette-focus
-          type="button"
-          disabled={!canMutate || mutationPending}
-          onclick={onNewTask}>New task</button
-        >
         <button type="button" onclick={() => onOpenView('inbox')}>Inbox</button>
         <button type="button" onclick={() => onOpenView('today')}>Today</button>
         <button type="button" onclick={() => onOpenView('ready')}>Ready</button>
@@ -153,6 +180,23 @@
             type="button"
             aria-pressed={preferences.theme === theme}
             onclick={() => setTheme(theme as Preferences['theme'])}>{theme}</button
+          >{/each}
+      </div>
+      <div class="control-row">
+        <span>Text size</span>
+        {#each ['compact', 'default', 'large'] as textSize (textSize)}<button
+            type="button"
+            aria-pressed={preferences.textSize === textSize}
+            onclick={() => setTextSize(textSize as Preferences['textSize'])}>{textSize}</button
+          >{/each}
+      </div>
+      <div class="control-row">
+        <span>Font</span>
+        {#each ['system', 'rounded', 'mono'] as fontFamily (fontFamily)}<button
+            type="button"
+            aria-pressed={preferences.fontFamily === fontFamily}
+            onclick={() => setFontFamily(fontFamily as Preferences['fontFamily'])}
+            >{fontFamily}</button
           >{/each}
       </div>
       <div class="control-row">
@@ -168,18 +212,6 @@
           onclick={() => setGraphDirection('vertical')}>Top to bottom</button
         >
       </div>
-      {#if daemons.length > 0}
-        <div class="control-row">
-          <span>Daemon</span><KataDaemonSwitcher
-            {daemons}
-            activeId={activeDaemonID}
-            activeStatusLabel={daemonError ?? (reconnecting ? 'Reconnecting…' : undefined)}
-            activeStatusTone={daemonError ? 'error' : undefined}
-            disabled={daemonSwitching || mutationPending}
-            onSelect={onSelectDaemon}
-          />
-        </div>
-      {/if}
     </section>
   </div>
 </Modal>
@@ -187,14 +219,14 @@
 <style>
   .workspace-palette {
     display: grid;
-    gap: var(--space-6);
-    padding: var(--space-5);
+    gap: var(--space-7);
+    padding: var(--space-6);
     max-height: min(70vh, 680px);
     overflow-y: auto;
   }
   section {
     display: grid;
-    gap: var(--space-3);
+    gap: var(--space-4);
   }
   h2 {
     margin: 0;
@@ -204,10 +236,16 @@
   .control-row {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
+    gap: var(--space-3) var(--space-4);
     flex-wrap: wrap;
   }
   .section-heading button {
+    margin-left: 0;
+  }
+  .action-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
     margin-left: auto;
   }
   .hint {
@@ -234,6 +272,18 @@
     cursor: not-allowed;
   }
   .control-row > span {
+    min-width: 88px;
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+  }
+  .daemon-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding-bottom: var(--space-5);
+    border-bottom: 1px solid var(--border-default);
+  }
+  .daemon-row > span {
     min-width: 88px;
     color: var(--text-muted);
     font-size: var(--font-size-xs);

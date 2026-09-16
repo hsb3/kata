@@ -7,6 +7,8 @@ export interface Preferences {
   splitSize: number
   sidebarCollapsed: boolean
   collapsedGroups: string[]
+  textSize: 'compact' | 'default' | 'large'
+  fontFamily: 'system' | 'rounded' | 'mono'
 }
 
 export const defaultPreferences: Preferences = {
@@ -16,6 +18,8 @@ export const defaultPreferences: Preferences = {
   splitSize: 420,
   sidebarCollapsed: false,
   collapsedGroups: [],
+  textSize: 'default',
+  fontFamily: 'system',
 }
 
 export function loadPreferences(storage: Storage = localStorage): Preferences {
@@ -33,6 +37,10 @@ export function loadPreferences(storage: Storage = localStorage): Preferences {
           : defaultPreferences.splitSize,
       sidebarCollapsed: value.sidebarCollapsed === true,
       collapsedGroups: stringArray(value.collapsedGroups, []),
+      textSize:
+        value.textSize === 'compact' || value.textSize === 'large' ? value.textSize : 'default',
+      fontFamily:
+        value.fontFamily === 'rounded' || value.fontFamily === 'mono' ? value.fontFamily : 'system',
     }
   } catch {
     return cloneDefaults()
@@ -62,6 +70,12 @@ export function savePreferences(
         : defaultPreferences.splitSize,
     sidebarCollapsed: current.sidebarCollapsed === true,
     collapsedGroups: stringArray(current.collapsedGroups, []),
+    textSize:
+      current.textSize === 'compact' || current.textSize === 'large' ? current.textSize : 'default',
+    fontFamily:
+      current.fontFamily === 'rounded' || current.fontFamily === 'mono'
+        ? current.fontFamily
+        : 'system',
   }
   storage.setItem(preferencesStorageKey, JSON.stringify(allowed))
 }

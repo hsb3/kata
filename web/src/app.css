@@ -19,6 +19,22 @@
   --bg-hover: var(--bg-surface-hover);
 }
 
+:root[data-text-size='compact'] {
+  --font-size-root: 13px;
+}
+
+:root[data-text-size='large'] {
+  --font-size-root: 17px;
+}
+
+:root[data-font-family='rounded'] {
+  --font-sans: ui-rounded, 'SF Pro Rounded', system-ui, sans-serif;
+}
+
+:root[data-font-family='mono'] {
+  --font-sans: ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace;
+}
+
 html,
 body {
   height: 100%;

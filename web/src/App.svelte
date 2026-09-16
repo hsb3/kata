@@ -188,6 +188,8 @@
 
   $effect(() => {
     setThemeMode(preferences.theme)
+    document.documentElement.dataset.textSize = preferences.textSize
+    document.documentElement.dataset.fontFamily = preferences.fontFamily
   })
 
   onMount(() => {

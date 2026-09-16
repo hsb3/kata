@@ -10,6 +10,8 @@ describe('WorkspacePalette', () => {
     const onReset = vi.fn()
     const onSortChange = vi.fn()
     const onColumnVisibilityChange = vi.fn()
+    const onPreferencesChange = vi.fn()
+    const onNewProject = vi.fn()
     render(WorkspacePalette, {
       props: {
         open: true,
@@ -39,6 +41,8 @@ describe('WorkspacePalette', () => {
           splitSize: 420,
           sidebarCollapsed: false,
           collapsedGroups: [],
+          textSize: 'default',
+          fontFamily: 'system',
         },
         daemons: [],
         canMutate: true,
@@ -48,9 +52,10 @@ describe('WorkspacePalette', () => {
         onReset,
         onSortChange,
         onColumnVisibilityChange,
-        onPreferencesChange: vi.fn(),
+        onPreferencesChange,
         onSelectDaemon: vi.fn(),
         onNewTask: vi.fn(),
+        onNewProject,
         onOpenView: vi.fn(),
       },
     })
@@ -71,5 +76,16 @@ describe('WorkspacePalette', () => {
       owner: false,
       tags: true,
     })
+
+    await fireEvent.click(screen.getByRole('button', { name: 'New project' }))
+    expect(onNewProject).toHaveBeenCalledOnce()
+
+    await fireEvent.click(screen.getByRole('button', { name: 'large' }))
+    expect(onPreferencesChange).toHaveBeenCalledWith(expect.objectContaining({ textSize: 'large' }))
+
+    await fireEvent.click(screen.getByRole('button', { name: 'mono' }))
+    expect(onPreferencesChange).toHaveBeenCalledWith(
+      expect.objectContaining({ fontFamily: 'mono' }),
+    )
   })
 })

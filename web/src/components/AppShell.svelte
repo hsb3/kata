@@ -160,6 +160,7 @@
   let detailExpanded = $state(false)
   let linkFilters = $state(createKataLinkFilters('all'))
   let navigationGeneration = $state(0)
+  let createProjectGeneration = $state(0)
   let graphSelectedUID = $derived<string | null>(
     route.issueUID && route.graph ? route.issueUID : null,
   )
@@ -403,6 +404,7 @@
     {searchFilters}
     projectCreationDisabled={!canMutate || mutationPending}
     {draftFenceGeneration}
+    {createProjectGeneration}
     inboxProjectUID={inboxProject?.uid}
     inboxDesignationDisabled={!canMutate || mutationPending}
     onOpenView={openView}
@@ -716,6 +718,10 @@
   {onPreferencesChange}
   {onSelectDaemon}
   onNewTask={beginNewTask}
+  onNewProject={() => {
+    paletteOpen = false
+    createProjectGeneration += 1
+  }}
   onOpenView={openView}
 />
 
