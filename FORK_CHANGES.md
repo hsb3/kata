@@ -35,6 +35,7 @@ name-only `.kata.toml` binding.
 
 | Date | What | Why | Move + merge rule |
 |---|---|---|---|
+| 2026-09-15 | Ignore machine-local agent activation configuration | Keep local hook policy and machine-specific setup out of the public fork | Addition; retain local-only ignores |
 | 2026-09-15 | Fork-controlled reusable test workflow, hosted Linux runners, and push validation on `dev` and preserved `main` | Keep fork CI independent of upstream workflow and runner configuration | Modify; retain fork-local workflow reference, branch triggers, and read-only permissions while incorporating upstream test improvements |
 | 2026-09-15 | Adopt `dev` as the maintained fork branch; remove the obsolete project identity field; declare `docs/fork/frontend-overhaul/UX-PATTERNS.md` | Preserve the existing board and make the requested palette and overlay behavior explicit before implementation | Modify+Addition; retain the fork branch model and name-only project binding |
 | 2026-09-13 | Adopted this SOP and ledger (`FORK_CHANGES.md`) | Governance baseline | Addition; upstream never has this file |

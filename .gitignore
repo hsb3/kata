@@ -56,3 +56,6 @@ __pycache__/
 .vercel
 .env*.local
 .env*
+
+# atelier per-project activation - local, never committed
+.claude/*.local.md
