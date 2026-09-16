@@ -4,7 +4,7 @@
   import type { KataProjectSummary, KataTaskSearchFilters } from '../lib/kata/types'
   import { toggleKataTaskSort, type KataTaskSort, type KataTaskSortKey } from '../lib/kata/sort'
   import type { KataTaskColumnVisibility } from '../lib/kata/columns'
-  import type { Preferences } from '../lib/state/preferences'
+  import { MAX_FONT_SIZE, MIN_FONT_SIZE, type Preferences } from '../lib/state/preferences'
   import ColumnPicker from './ColumnPicker.svelte'
   import IssueFilters from './IssueFilters.svelte'
   import KataDaemonSwitcher from './KataDaemonSwitcher.svelte'
@@ -99,8 +99,12 @@
     onPreferencesChange({ ...preferences, splitDirection })
   }
 
-  function setTextSize(textSize: Preferences['textSize']): void {
-    onPreferencesChange({ ...preferences, textSize })
+  function setFontSize(fontSize: number): void {
+    if (!Number.isFinite(fontSize)) return
+    onPreferencesChange({
+      ...preferences,
+      fontSize: Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, Math.round(fontSize))),
+    })
   }
 
   function setFontFamily(fontFamily: Preferences['fontFamily']): void {
@@ -136,11 +140,15 @@
           <button
             data-palette-focus
             type="button"
+            class="button-action"
             disabled={!canMutate || mutationPending}
             onclick={onNewTask}>New task</button
           >
-          <button type="button" disabled={!canMutate || mutationPending} onclick={onNewProject}
-            >New project</button
+          <button
+            type="button"
+            class="button-action"
+            disabled={!canMutate || mutationPending}
+            onclick={onNewProject}>New project</button
           >
           <button type="button" onclick={onReset}>Reset filters</button>
         </div>
@@ -184,11 +192,17 @@
       </div>
       <div class="control-row">
         <span>Text size</span>
-        {#each ['compact', 'default', 'large'] as textSize (textSize)}<button
-            type="button"
-            aria-pressed={preferences.textSize === textSize}
-            onclick={() => setTextSize(textSize as Preferences['textSize'])}>{textSize}</button
-          >{/each}
+        <input
+          type="number"
+          class="font-size-input"
+          aria-label="Text size"
+          min={MIN_FONT_SIZE}
+          max={MAX_FONT_SIZE}
+          step="1"
+          value={preferences.fontSize}
+          oninput={(event) => setFontSize(event.currentTarget.valueAsNumber)}
+        />
+        <span class="font-size-unit">px</span>
       </div>
       <div class="control-row">
         <span>Font</span>
@@ -271,8 +285,30 @@
     opacity: 0.5;
     cursor: not-allowed;
   }
+  .button-action {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+    font-weight: 600;
+  }
+  .button-action:hover:not(:disabled) {
+    background: var(--accent-blue-soft);
+  }
   .control-row > span {
     min-width: 88px;
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+  }
+  .font-size-input {
+    width: 4.5em;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    padding: var(--space-2) var(--space-3);
+    font: inherit;
+    font-size: var(--font-size-xs);
+  }
+  .font-size-unit {
     color: var(--text-muted);
     font-size: var(--font-size-xs);
   }

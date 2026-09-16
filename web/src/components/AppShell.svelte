@@ -442,17 +442,6 @@
             <actionIcons.menu size={15} strokeWidth={1.8} aria-hidden="true" />
           </IconButton>
         </span>
-        <IconButton
-          ariaLabel={preferences.sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-          title={preferences.sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-          onclick={toggleSidebar}
-        >
-          {#if preferences.sidebarCollapsed}
-            <actionIcons.sidebarExpand size={15} strokeWidth={1.8} aria-hidden="true" />
-          {:else}
-            <actionIcons.sidebarCollapse size={15} strokeWidth={1.8} aria-hidden="true" />
-          {/if}
-        </IconButton>
         <button
           type="button"
           bind:this={paletteTrigger}
@@ -482,6 +471,20 @@
     class="kata-layout"
     aria-busy={loading}
   >
+    <div class="sidebar-rail">
+      <IconButton
+        ariaLabel={preferences.sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+        title={preferences.sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+        onclick={toggleSidebar}
+      >
+        {#if preferences.sidebarCollapsed}
+          <actionIcons.sidebarExpand size={15} strokeWidth={1.8} aria-hidden="true" />
+        {:else}
+          <actionIcons.sidebarCollapse size={15} strokeWidth={1.8} aria-hidden="true" />
+        {/if}
+      </IconButton>
+    </div>
+
     <div class="desktop-navigation">
       {@render navigationSidebar()}
     </div>
@@ -829,15 +832,26 @@
     min-height: 0;
     flex: 1;
     display: grid;
-    grid-template-columns: 240px minmax(0, 1fr);
+    grid-template-columns: 32px 240px minmax(0, 1fr);
   }
 
   .kata-layout.sidebar-collapsed {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: 32px minmax(0, 1fr);
   }
 
   .kata-layout.sidebar-collapsed .desktop-navigation {
     display: none;
+  }
+
+  .sidebar-rail {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: var(--space-2);
+    border-right: 1px solid var(--border-default);
+    background: var(--bg-surface);
   }
 
   .desktop-navigation {
@@ -930,6 +944,10 @@
   @media (max-width: 760px) {
     .kata-layout {
       grid-template-columns: 1fr;
+    }
+
+    .sidebar-rail {
+      display: none;
     }
 
     .desktop-navigation {

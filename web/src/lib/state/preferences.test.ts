@@ -4,6 +4,7 @@ import {
   defaultPreferences,
   loadPreferences,
   originStabilityWarning,
+  preferencesStorageKey,
   savePreferences,
 } from './preferences'
 
@@ -59,11 +60,26 @@ describe('origin-local preferences', () => {
     })
   })
 
-  it('persists selected text size and font family', () => {
+  it('persists a selected font size and font family', () => {
     const storage = new MapStorage()
-    savePreferences({ ...defaultPreferences, textSize: 'large', fontFamily: 'mono' }, storage)
+    savePreferences({ ...defaultPreferences, fontSize: 20, fontFamily: 'mono' }, storage)
 
-    expect(loadPreferences(storage)).toMatchObject({ textSize: 'large', fontFamily: 'mono' })
+    expect(loadPreferences(storage)).toMatchObject({ fontSize: 20, fontFamily: 'mono' })
+  })
+
+  it('clamps a restored font size to the 8-24 range and falls back to 16 when invalid', () => {
+    const storage = new MapStorage()
+    storage.setItem(preferencesStorageKey, JSON.stringify({ ...defaultPreferences, fontSize: 40 }))
+    expect(loadPreferences(storage).fontSize).toBe(24)
+
+    storage.setItem(preferencesStorageKey, JSON.stringify({ ...defaultPreferences, fontSize: 2 }))
+    expect(loadPreferences(storage).fontSize).toBe(8)
+
+    storage.setItem(
+      preferencesStorageKey,
+      JSON.stringify({ ...defaultPreferences, fontSize: 'huge' }),
+    )
+    expect(loadPreferences(storage).fontSize).toBe(16)
   })
 
   it('reports degraded origins without copying preference state', () => {

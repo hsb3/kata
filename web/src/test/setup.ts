@@ -44,3 +44,21 @@ Object.defineProperty(Element.prototype, 'scrollIntoView', {
   configurable: true,
   value: () => undefined,
 })
+
+// jsdom does not implement the pointer-capture APIs used by kit-ui's
+// SplitResizeHandle (and other drag interactions) to keep receiving pointer
+// events outside the handle's own bounds.
+if (!Element.prototype.setPointerCapture) {
+  Object.defineProperty(Element.prototype, 'setPointerCapture', {
+    configurable: true,
+    value: () => undefined,
+  })
+  Object.defineProperty(Element.prototype, 'releasePointerCapture', {
+    configurable: true,
+    value: () => undefined,
+  })
+  Object.defineProperty(Element.prototype, 'hasPointerCapture', {
+    configurable: true,
+    value: () => false,
+  })
+}

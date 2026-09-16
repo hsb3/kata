@@ -14,12 +14,14 @@ describe('App', () => {
     sessionStorage.clear()
     localStorage.clear()
     document.documentElement.classList.remove('dark')
+    document.documentElement.style.fontSize = ''
     history.replaceState(null, '', '/kata')
   })
 
   afterEach(() => {
     cleanup()
     document.documentElement.classList.remove('dark')
+    document.documentElement.style.fontSize = ''
     vi.unstubAllGlobals()
   })
 
@@ -1516,12 +1518,21 @@ describe('App', () => {
     render(App)
 
     expect(document.documentElement.classList.contains('dark')).toBe(true)
+    expect(document.documentElement.style.fontSize).toBe('16px')
     await fireEvent.click(await screen.findByRole('button', { name: 'Open workspace palette' }))
     await fireEvent.click(
       within(screen.getByText('Appearance').parentElement!).getByRole('button', { name: 'system' }),
     )
     expect(JSON.parse(localStorage.getItem(preferencesStorageKey) ?? '{}')).toEqual(
       expect.objectContaining({ theme: 'system', splitDirection: 'horizontal', splitSize: 520 }),
+    )
+
+    await fireEvent.input(screen.getByRole('spinbutton', { name: 'Text size' }), {
+      target: { value: '22' },
+    })
+    expect(document.documentElement.style.fontSize).toBe('22px')
+    expect(JSON.parse(localStorage.getItem(preferencesStorageKey) ?? '{}')).toEqual(
+      expect.objectContaining({ fontSize: 22 }),
     )
   })
 

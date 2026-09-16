@@ -41,7 +41,7 @@ describe('WorkspacePalette', () => {
           splitSize: 420,
           sidebarCollapsed: false,
           collapsedGroups: [],
-          textSize: 'default',
+          fontSize: 16,
           fontFamily: 'system',
         },
         daemons: [],
@@ -80,8 +80,10 @@ describe('WorkspacePalette', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'New project' }))
     expect(onNewProject).toHaveBeenCalledOnce()
 
-    await fireEvent.click(screen.getByRole('button', { name: 'large' }))
-    expect(onPreferencesChange).toHaveBeenCalledWith(expect.objectContaining({ textSize: 'large' }))
+    await fireEvent.input(screen.getByRole('spinbutton', { name: 'Text size' }), {
+      target: { value: '20' },
+    })
+    expect(onPreferencesChange).toHaveBeenCalledWith(expect.objectContaining({ fontSize: 20 }))
 
     await fireEvent.click(screen.getByRole('button', { name: 'mono' }))
     expect(onPreferencesChange).toHaveBeenCalledWith(

@@ -1,5 +1,9 @@
 export const preferencesStorageKey = 'kata.preferences.v1'
 
+export const MIN_FONT_SIZE = 8
+export const MAX_FONT_SIZE = 24
+export const DEFAULT_FONT_SIZE = 16
+
 export interface Preferences {
   theme: 'system' | 'light' | 'dark'
   columns: string[]
@@ -7,7 +11,7 @@ export interface Preferences {
   splitSize: number
   sidebarCollapsed: boolean
   collapsedGroups: string[]
-  textSize: 'compact' | 'default' | 'large'
+  fontSize: number
   fontFamily: 'system' | 'rounded' | 'mono'
 }
 
@@ -18,8 +22,13 @@ export const defaultPreferences: Preferences = {
   splitSize: 420,
   sidebarCollapsed: false,
   collapsedGroups: [],
-  textSize: 'default',
+  fontSize: DEFAULT_FONT_SIZE,
   fontFamily: 'system',
+}
+
+function clampFontSize(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_FONT_SIZE
+  return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, Math.round(value)))
 }
 
 export function loadPreferences(storage: Storage = localStorage): Preferences {
@@ -37,8 +46,7 @@ export function loadPreferences(storage: Storage = localStorage): Preferences {
           : defaultPreferences.splitSize,
       sidebarCollapsed: value.sidebarCollapsed === true,
       collapsedGroups: stringArray(value.collapsedGroups, []),
-      textSize:
-        value.textSize === 'compact' || value.textSize === 'large' ? value.textSize : 'default',
+      fontSize: clampFontSize(value.fontSize),
       fontFamily:
         value.fontFamily === 'rounded' || value.fontFamily === 'mono' ? value.fontFamily : 'system',
     }
@@ -70,8 +78,7 @@ export function savePreferences(
         : defaultPreferences.splitSize,
     sidebarCollapsed: current.sidebarCollapsed === true,
     collapsedGroups: stringArray(current.collapsedGroups, []),
-    textSize:
-      current.textSize === 'compact' || current.textSize === 'large' ? current.textSize : 'default',
+    fontSize: clampFontSize(current.fontSize),
     fontFamily:
       current.fontFamily === 'rounded' || current.fontFamily === 'mono'
         ? current.fontFamily

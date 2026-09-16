@@ -17,6 +17,7 @@ import {
   KATA_TASK_COLUMNS_STORAGE_KEY,
   type KataTaskColumnVisibility,
 } from '../lib/kata/columns'
+import { KATA_TASK_COLUMN_WIDTHS_STORAGE_KEY } from '../lib/kata/columnWidths'
 
 interface IssueListRenderOptions {
   props: {
@@ -306,6 +307,63 @@ describe('IssueCollection', () => {
     for (const name of ['Updated', 'Priority', 'Due', 'Owner', 'Tags']) {
       expect(within(header).getByText(name)).toBeTruthy()
     }
+  })
+
+  it('resizes a column by dragging its handle and persists the width', async () => {
+    const { container } = render(IssueCollection, {
+      props: { currentView, selectedIssueUID: null, loading: false, onSelect: () => {} },
+    })
+
+    const handle = screen.getByRole('separator', { name: 'Resize Updated column' })
+    await fireEvent.pointerDown(handle, { clientX: 100, pointerId: 1 })
+    await fireEvent.pointerMove(handle, { clientX: 160, pointerId: 1 })
+    await fireEvent.pointerUp(handle, { clientX: 160, pointerId: 1 })
+
+    const table = container.querySelector<HTMLElement>('.table')!
+    expect(table.style.getPropertyValue('--table-cols-wide')).toContain('60px')
+    expect(JSON.parse(localStorage.getItem(KATA_TASK_COLUMN_WIDTHS_STORAGE_KEY) ?? '{}')).toEqual({
+      updated: 60,
+    })
+  })
+
+  it('resets a resized column to its default width on a rapid second press', async () => {
+    localStorage.setItem(KATA_TASK_COLUMN_WIDTHS_STORAGE_KEY, JSON.stringify({ updated: 200 }))
+    const { container } = render(IssueCollection, {
+      props: { currentView, selectedIssueUID: null, loading: false, onSelect: () => {} },
+    })
+
+    const table = container.querySelector<HTMLElement>('.table')!
+    expect(table.style.getPropertyValue('--table-cols-wide')).toContain('200px')
+
+    // The resize handle suppresses native click/dblclick synthesis (its
+    // pointerdown calls preventDefault), so reset is driven by two raw
+    // pointerdowns close together instead of a dblclick event.
+    const handle = screen.getByRole('separator', { name: 'Resize Updated column' })
+    await fireEvent.pointerDown(handle, { clientX: 100, pointerId: 1 })
+    await fireEvent.pointerUp(handle, { clientX: 100, pointerId: 1 })
+    await fireEvent.pointerDown(handle, { clientX: 100, pointerId: 1 })
+
+    // The default (non-custom) wide-layout track for Updated, restored once
+    // the override is cleared.
+    expect(table.style.getPropertyValue('--table-cols-wide')).toContain('minmax(64px, 80px)')
+    expect(JSON.parse(localStorage.getItem(KATA_TASK_COLUMN_WIDTHS_STORAGE_KEY) ?? '{}')).toEqual(
+      {},
+    )
+  })
+
+  it('resizes a column with the arrow keys when its handle is focused', async () => {
+    render(IssueCollection, {
+      props: { currentView, selectedIssueUID: null, loading: false, onSelect: () => {} },
+    })
+
+    const handle = screen.getByRole('separator', { name: 'Resize Updated column' })
+    await fireEvent.keyDown(handle, { key: 'ArrowRight' })
+
+    // jsdom performs no real layout, so the handle's unset starting width
+    // measures as 0 and the +10px key step clamps up to the column minimum.
+    expect(JSON.parse(localStorage.getItem(KATA_TASK_COLUMN_WIDTHS_STORAGE_KEY) ?? '{}')).toEqual({
+      updated: 56,
+    })
   })
 
   it('uses controlled sort and column visibility instead of restored preferences', () => {

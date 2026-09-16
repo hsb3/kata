@@ -440,7 +440,7 @@ describe('AppShell', () => {
           splitSize: 420,
           sidebarCollapsed: false,
           collapsedGroups: [],
-          textSize: 'default',
+          fontSize: 16,
           fontFamily: 'system',
         },
         onPreferencesChange,
