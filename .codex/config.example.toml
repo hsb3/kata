@@ -10,7 +10,6 @@
 "computer-use@openai-bundled" = { enabled = true }
 "frontend-design@claude-plugins-official" = { enabled = true }
 "kata@kata-oversight" = { enabled = true }
-"plugin-feedback@dotfiles-agents" = { enabled = true }
 "ponytail@ponytail" = { enabled = true }
 "solo-skills@dotfiles-agents" = { enabled = true }
 "typescript-lsp@claude-plugins-official" = { enabled = true }
