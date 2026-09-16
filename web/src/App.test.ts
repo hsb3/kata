@@ -1225,7 +1225,9 @@ describe('App', () => {
     expect(await screen.findByRole('button', { name: /Remote issue/ })).not.toBeNull()
     expect(window.location.search).toBe('?view=all-open')
     await fireEvent.click(screen.getByRole('button', { name: 'Open workspace palette' }))
-    await fireEvent.click(screen.getByRole('button', { name: 'Switch Kata daemon: example-remote' }))
+    await fireEvent.click(
+      screen.getByRole('button', { name: 'Switch Kata daemon: example-remote' }),
+    )
     await fireEvent.click(screen.getByRole('menuitemradio', { name: /example-local/ }))
     await waitFor(() => expect(window.location.search).toBe('?view=today'))
     expect(snapshotRequests.map((request) => request.headers.get('X-Kata-Web-Daemon'))).toEqual(
@@ -1305,7 +1307,9 @@ describe('App', () => {
 
     expect(await screen.findByRole('button', { name: /Remote issue/ })).not.toBeNull()
     await fireEvent.click(screen.getByRole('button', { name: 'Open workspace palette' }))
-    expect(screen.getByRole('button', { name: 'Switch Kata daemon: example-remote' })).not.toBeNull()
+    expect(
+      screen.getByRole('button', { name: 'Switch Kata daemon: example-remote' }),
+    ).not.toBeNull()
     expect(snapshotDaemons.at(-1)).toBe('example-remote')
   })
 
@@ -1409,9 +1413,10 @@ describe('App', () => {
           request.method === 'POST' && request.url.endsWith('/api/v1/projects/7/metadata'),
       )
       expect(mutation).toBeDefined()
-      expect((screen.getByRole('button', { name: 'Open workspace palette' }) as HTMLButtonElement).disabled).toBe(
-        false,
-      )
+      expect(
+        (screen.getByRole('button', { name: 'Open workspace palette' }) as HTMLButtonElement)
+          .disabled,
+      ).toBe(false)
     })
     const mutation = requests.find(
       (request) => request.method === 'POST' && request.url.endsWith('/api/v1/projects/7/metadata'),
@@ -1723,9 +1728,10 @@ describe('App', () => {
     )
     await waitFor(() => expect(renewedSnapshotAccepted).toBe(true))
     await waitFor(() =>
-      expect((screen.getByRole('button', { name: 'Open workspace palette' }) as HTMLButtonElement).disabled).toBe(
-        false,
-      ),
+      expect(
+        (screen.getByRole('button', { name: 'Open workspace palette' }) as HTMLButtonElement)
+          .disabled,
+      ).toBe(false),
     )
     await waitFor(() =>
       expect(
