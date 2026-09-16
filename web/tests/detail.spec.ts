@@ -65,6 +65,30 @@ test('expanded detail uses almost the full viewport and close preserves the list
   await expect(page.getByRole('button', { name: /Overlay example task/ })).toBeVisible()
 })
 
+test('narrow detail fills the viewport and Escape closes a nested dialog first', async ({
+  page,
+  kata,
+}) => {
+  await page.setViewportSize({ width: 600, height: 684 })
+  const credentials = await kata.launch(page)
+  const issue = await kata.seedIssue(page, credentials, { title: 'Nested dialog example task' })
+  await page.goto(`${kata.origin}/kata?issue=${issue.uid}`)
+
+  const detail = page.getByRole('dialog', { name: 'Task detail' })
+  await expect(detail).toBeVisible()
+  expect(
+    await detail.evaluate((element) => element.getBoundingClientRect().width),
+  ).toBeGreaterThanOrEqual(599)
+
+  const complete = detail.getByRole('button', { name: 'Complete' })
+  await complete.click()
+  await expect(page.getByRole('dialog', { name: 'Complete task' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Complete task' })).toBeHidden()
+  await expect(detail).toBeVisible()
+  await expect(complete).toBeFocused()
+})
+
 test('comments, links, checklist, and history update without API fan-out', async ({
   page,
   kata,

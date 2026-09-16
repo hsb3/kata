@@ -70,6 +70,13 @@
       ;(explicit ?? primary ?? action)?.focus()
     })
   })
+
+  function dismissOnEscape(event: KeyboardEvent): void {
+    if (event.key !== 'Escape') return
+    event.preventDefault()
+    event.stopPropagation()
+    onClose()
+  }
 </script>
 
 {#snippet footerContent()}
@@ -91,7 +98,7 @@
     closable={showClose}
     onclose={onClose}
   >
-    <div class="modal-scope" bind:this={bodyEl}>
+    <div class="modal-scope" role="presentation" bind:this={bodyEl} onkeydown={dismissOnEscape}>
       {@render children()}
     </div>
   </KitModal>

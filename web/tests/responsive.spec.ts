@@ -103,7 +103,7 @@ test('task filters stay inside the desktop workspace without overlapping', async
   })
 
   expect(layout).toEqual({ height: expect.any(Number), contained: true, overlaps: false })
-  expect(layout.height).toBeGreaterThan(0)
+  expect(layout.height).toBeGreaterThan(30)
   const attention = page.locator(`.issue-row[data-uid="${issue.uid}"] .attention-chip`)
   await page.locator(`.issue-row[data-uid="${issue.uid}"]`).scrollIntoViewIfNeeded()
   expect(

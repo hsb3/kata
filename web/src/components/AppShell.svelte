@@ -511,7 +511,7 @@
     onclose={closeDetail}
     header={detailHeader}
   >
-    {@render detailPane()}
+    <div class="task-detail-content">{@render detailPane()}</div>
   </DetailDrawer>
 {/if}
 
@@ -844,6 +844,20 @@
     display: flex;
   }
 
+  .task-detail-content {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .task-detail-content .detail-column {
+    flex: 1 1 auto;
+  }
+
+  :global(.kata-search-toolbar) {
+    min-height: 32px;
+  }
+
   .graph-overlay-content {
     display: flex;
     flex: 1 1 auto;
@@ -895,6 +909,11 @@
 
     .mobile-navigation-trigger {
       display: inline-flex;
+    }
+
+    :global(.kit-detail-drawer-overlay:has(.task-detail-content) .kit-detail-drawer) {
+      width: 100vw !important;
+      max-width: 100vw;
     }
   }
 </style>
