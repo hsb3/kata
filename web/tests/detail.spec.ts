@@ -82,7 +82,10 @@ test('narrow detail fills the viewport and Escape closes a nested dialog first',
 
   const complete = detail.getByRole('button', { name: 'Complete' })
   await complete.click()
-  await expect(page.getByRole('dialog', { name: 'Complete task' })).toBeVisible()
+  const completeDialog = page.getByRole('dialog', { name: 'Complete task' })
+  await expect(completeDialog).toBeVisible()
+  const cancel = completeDialog.getByRole('button', { name: 'Cancel' })
+  await cancel.focus()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog', { name: 'Complete task' })).toBeHidden()
   await expect(detail).toBeVisible()

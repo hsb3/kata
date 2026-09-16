@@ -854,10 +854,6 @@
     flex: 1 1 auto;
   }
 
-  :global(.kata-search-toolbar) {
-    min-height: 32px;
-  }
-
   .graph-overlay-content {
     display: flex;
     flex: 1 1 auto;
