@@ -8,6 +8,8 @@ describe('WorkspacePalette', () => {
 
   test('resets list filters without changing the current project scope', async () => {
     const onReset = vi.fn()
+    const onSortChange = vi.fn()
+    const onColumnVisibilityChange = vi.fn()
     render(WorkspacePalette, {
       props: {
         open: true,
@@ -44,8 +46,8 @@ describe('WorkspacePalette', () => {
         onClose: vi.fn(),
         onFiltersChange: vi.fn(),
         onReset,
-        onSortChange: vi.fn(),
-        onColumnVisibilityChange: vi.fn(),
+        onSortChange,
+        onColumnVisibilityChange,
         onPreferencesChange: vi.fn(),
         onSelectDaemon: vi.fn(),
         onNewTask: vi.fn(),
@@ -55,5 +57,19 @@ describe('WorkspacePalette', () => {
 
     await fireEvent.click(screen.getByRole('button', { name: 'Reset filters' }))
     expect(onReset).toHaveBeenCalledOnce()
+
+    await fireEvent.click(screen.getByRole('button', { name: 'priority' }))
+    expect(onSortChange).toHaveBeenCalledWith({ key: 'priority', direction: 'asc' })
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Columns' }))
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'Owner' }))
+    expect(onColumnVisibilityChange).toHaveBeenCalledWith({
+      attention: false,
+      updated: true,
+      priority: true,
+      due: true,
+      owner: false,
+      tags: true,
+    })
   })
 })

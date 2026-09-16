@@ -76,7 +76,8 @@
 
   const restoredColumnVisibility = loadKataTaskColumnVisibility()
   const restoredSort = loadKataTaskSort()
-  let sort = $derived(controlledSort ?? restoredSort)
+  let localSort = $state(restoredSort)
+  let sort = $derived(controlledSort ?? localSort)
   let columnVisibility = $derived(controlledColumnVisibility ?? restoredColumnVisibility)
 
   type TaskGridLayout = 'wide' | 'medium' | 'compact' | 'narrow'
@@ -261,6 +262,7 @@
       onSortChange?.(next)
       return
     }
+    localSort = next
     persistKataTaskSort(next)
   }
 

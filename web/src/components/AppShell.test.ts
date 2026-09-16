@@ -52,7 +52,9 @@ describe('AppShell', () => {
     expect(header).not.toBeNull()
     expect(header?.classList.contains('kit-top-bar')).toBe(true)
     expect(within(header as HTMLElement).getByRole('heading', { name: 'Kata' })).not.toBeNull()
-    expect(within(header as HTMLElement).getByRole('button', { name: 'New task' })).not.toBeNull()
+    expect(
+      within(header as HTMLElement).getByRole('button', { name: 'Open workspace palette' }),
+    ).not.toBeNull()
   })
 
   test('connects the ported navigation, filters, and collection to canonical routes', async () => {
@@ -88,6 +90,7 @@ describe('AppShell', () => {
       filters: { status: [], owner: [], label: [], relationship: [] },
     })
 
+    await fireEvent.click(screen.getByRole('button', { name: 'Open workspace palette' }))
     await fireEvent.input(screen.getByLabelText('Search tasks'), { target: { value: 'example' } })
     await waitFor(() =>
       expect(onNavigate).toHaveBeenCalledWith({
@@ -231,6 +234,7 @@ describe('AppShell', () => {
       },
     })
 
+    await fireEvent.click(screen.getByRole('button', { name: 'Open workspace palette' }))
     await fireEvent.click(screen.getByRole('button', { name: /Project scope: example-project/i }))
     await fireEvent.mouseDown(screen.getByRole('option', { name: 'All projects' }))
 
@@ -266,6 +270,7 @@ describe('AppShell', () => {
       },
     })
 
+    await fireEvent.click(screen.getByRole('button', { name: 'Open workspace palette' }))
     await fireEvent.input(screen.getByLabelText('Search tasks'), { target: { value: 'example' } })
 
     await waitFor(() =>
@@ -443,7 +448,8 @@ describe('AppShell', () => {
       },
     })
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Theme: System' }))
+    await fireEvent.click(screen.getByRole('button', { name: 'Open workspace palette' }))
+    await fireEvent.click(screen.getByRole('button', { name: 'light' }))
     expect(onPreferencesChange).toHaveBeenCalledWith(
       expect.objectContaining({ theme: 'light', splitDirection: 'horizontal' }),
     )
@@ -513,6 +519,7 @@ describe('AppShell', () => {
       },
     })
 
+    await fireEvent.click(within(container).getByRole('button', { name: 'Open workspace palette' }))
     await fireEvent.click(within(container).getByRole('button', { name: 'New task' }))
     await fireEvent.input(within(container).getByRole('textbox', { name: 'Quick capture' }), {
       target: { value: 'New example task' },
@@ -542,6 +549,7 @@ describe('AppShell', () => {
       },
     })
 
+    await fireEvent.click(screen.getByRole('button', { name: 'Open workspace palette' }))
     const create = screen.getByRole('button', { name: 'New task' }) as HTMLButtonElement
     expect(create.disabled).toBe(false)
     await fireEvent.click(create)
