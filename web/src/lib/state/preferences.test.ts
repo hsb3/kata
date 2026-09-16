@@ -48,6 +48,17 @@ describe('origin-local preferences', () => {
     })
   })
 
+  it('persists collapsed desktop navigation without changing workspace preferences', () => {
+    const storage = new MapStorage()
+    savePreferences({ ...defaultPreferences, sidebarCollapsed: true }, storage)
+
+    expect(loadPreferences(storage)).toMatchObject({
+      sidebarCollapsed: true,
+      splitDirection: 'vertical',
+      splitSize: 420,
+    })
+  })
+
   it('reports degraded origins without copying preference state', () => {
     expect(originStabilityWarning(false)).toContain('temporary browser origin')
     expect(originStabilityWarning(true)).toBeUndefined()

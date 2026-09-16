@@ -387,7 +387,7 @@ describe('AppShell', () => {
     })
   })
 
-  test('uses the persisted split orientation and exposes an accessible layout toggle', async () => {
+  test('uses the persisted navigation state and exposes an accessible toggle', async () => {
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -433,6 +433,7 @@ describe('AppShell', () => {
           columns: ['status', 'title'],
           splitDirection: 'horizontal',
           splitSize: 420,
+          sidebarCollapsed: false,
           collapsedGroups: [],
         },
         onPreferencesChange,
@@ -448,11 +449,48 @@ describe('AppShell', () => {
     )
     onPreferencesChange.mockClear()
 
-    expect(screen.getByRole('separator', { name: 'Resize Kata panes' })).not.toBeNull()
-    await fireEvent.click(screen.getByRole('button', { name: 'Switch to stacked layout' }))
+    await fireEvent.click(screen.getByRole('button', { name: 'Collapse navigation' }))
     expect(onPreferencesChange).toHaveBeenCalledWith(
-      expect.objectContaining({ splitDirection: 'vertical', splitSize: 420 }),
+      expect.objectContaining({ sidebarCollapsed: true, splitDirection: 'horizontal' }),
     )
+  })
+
+  test('keeps the list mounted while detail opens above it and can be expanded or closed', async () => {
+    const selected = snapshot()
+    selected.selected = {
+      state: 'available',
+      issue: { ...selected.collection![0]!, body: '', revision: 3 },
+      comments: [],
+      labels: [],
+      links: [],
+      recurrences: [],
+      history: [],
+    }
+    const onNavigate = vi.fn()
+    render(AppShell, {
+      props: {
+        route: {
+          kind: 'kata',
+          issueUID: '01J00000000000000000000001',
+          graph: false,
+          filters: { status: [], owner: [], label: [], relationship: [] },
+        },
+        snapshot: selected,
+        loading: false,
+        ...mutationProps(),
+        onNavigate,
+        onCreateProject: vi.fn(async () => ({ changed: true })),
+      },
+    })
+
+    expect(screen.getByRole('button', { name: /Example issue/ })).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Expand detail' })).not.toBeNull()
+    await fireEvent.click(screen.getByRole('button', { name: 'Close detail' }))
+    expect(onNavigate).toHaveBeenCalledWith({
+      kind: 'kata',
+      filters: { status: [], owner: [], label: [], relationship: [] },
+      graph: false,
+    })
   })
 
   test('quick-captures a new task through the ported workspace action', async () => {

@@ -21,6 +21,22 @@ test('reachable graph preserves relationship context and returns to detail', asy
   await expect(page).toHaveURL(`${kata.origin}/kata?issue=${source.uid}`)
 })
 
+test('reachable graph fills an independent viewport overlay', async ({ page, kata }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const credentials = await kata.launch(page)
+  const issue = await kata.seedIssue(page, credentials, { title: 'Viewport graph source' })
+  await page.goto(`${kata.origin}/kata?issue=${issue.uid}&graph=1`)
+
+  const graph = page.getByRole('dialog', { name: 'Reachable task graph' })
+  await expect(graph).toBeVisible()
+  const bounds = await graph.evaluate((element) => {
+    const rect = element.getBoundingClientRect()
+    return { width: rect.width, height: rect.height }
+  })
+  expect(bounds.width).toBeGreaterThanOrEqual(1440 * 0.9)
+  expect(bounds.height).toBeGreaterThanOrEqual(900 * 0.9)
+})
+
 test('recurrence authority is shown and can be deleted from issue detail', async ({
   page,
   kata,

@@ -46,6 +46,25 @@ test('detail editing and close reasons round-trip through live Kata authority', 
   await expect(page.getByRole('button', { name: 'Reopen' })).toBeVisible()
 })
 
+test('expanded detail uses almost the full viewport and close preserves the list URL', async ({
+  page,
+  kata,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const credentials = await kata.launch(page)
+  const issue = await kata.seedIssue(page, credentials, { title: 'Overlay example task' })
+  await page.goto(`${kata.origin}/kata?view=all-open&issue=${issue.uid}`)
+
+  await page.getByRole('button', { name: 'Expand detail' }).click()
+  const width = await page
+    .getByRole('dialog', { name: 'Task detail' })
+    .evaluate((element) => element.getBoundingClientRect().width)
+  expect(width).toBeGreaterThanOrEqual(1440 * 0.9)
+  await page.getByRole('button', { name: 'Close detail' }).click()
+  await expect(page).toHaveURL(`${kata.origin}/kata?view=all-open`)
+  await expect(page.getByRole('button', { name: /Overlay example task/ })).toBeVisible()
+})
+
 test('comments, links, checklist, and history update without API fan-out', async ({
   page,
   kata,
