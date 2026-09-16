@@ -422,15 +422,17 @@ func planningDateCondition(valueField, clearField string) *jsonschema.Schema {
 // last variant is the final else, so a missing or unknown reason still fails.
 func closeReasonCondition() *jsonschema.Schema {
 	variants := closeReasonSchemas()
-	reasons := []string{"done", "wontfix", "duplicate", "superseded", "audit-no-change"}
 	condition := variants[len(variants)-1]
 	for i := len(variants) - 2; i >= 0; i-- {
-		reason := any(reasons[i])
+		reason, ok := variants[i].Properties["reason"]
+		if !ok || reason == nil {
+			panic("close reason schema has no reason property")
+		}
 		condition = &jsonschema.Schema{
 			If: &jsonschema.Schema{
 				Required: []string{"reason"},
 				Properties: map[string]*jsonschema.Schema{
-					"reason": {Const: &reason},
+					"reason": {Const: reason.Const},
 				},
 			},
 			Then: variants[i],
