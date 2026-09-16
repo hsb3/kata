@@ -1,5 +1,4 @@
 version = 1
 
 [project]
-identity = "github.com/wesm/kata"
-name     = "kata"
+name = "kata"

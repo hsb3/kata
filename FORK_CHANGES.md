@@ -1,6 +1,6 @@
 # Fork Changes — hsb3/kata
 
-_The divergence ledger: one entry per deliberate difference between this fork's `main`
+_The divergence ledger: one entry per deliberate difference between this fork's `dev`
 and `kenn-io/kata` `main`. A file that differs from upstream and isn't listed here is a
 bug: re-align it or add the row. During upstream merges this is the conflict-resolution
 cheat sheet._
@@ -12,13 +12,15 @@ upstream `.kata.toml` binds to it unchanged); parent workstream `dev-journey#9bh
 
 - Public GitHub fork (light tier). `origin` = hsb3/kata, `upstream` = kenn-io/kata,
   fetch-only (`git remote set-url --push upstream DISABLED`).
-- `main` = upstream `main` + the divergences below. Sync with
-  `git fetch upstream && git merge refs/remotes/upstream/main`; never rebase `main`.
+- `dev` is the fork's maintained branch and intended default: upstream `main` plus
+  the divergences below. From `dev`, sync with
+  `git fetch upstream && git merge refs/remotes/upstream/main`; never rebase `dev`.
+  The existing `main` remains preserved; it is not a pristine upstream mirror.
   Lockfiles: take upstream's and re-run the generator.
-- Upstream-bound fixes branch from `upstream/main` (never from fork `main`), so their PRs
-  carry no fork commits. They merge into fork `main` too, with a ledger row whose merge
+- Upstream-bound fixes branch from `upstream/main` (never from fork `dev`), so their PRs
+  carry no fork commits. They merge into fork `dev` too, with a ledger row whose merge
   rule is "drop when upstream merges it".
-- Fork-only work lands on `fork/<topic>` branches, merged to `main` with its ledger row in
+- Fork-only work lands on `fork/<topic>` branches, merged to `dev` with its ledger row in
   the same commit. Divergence commits are prefixed `fork:`.
 - Fork builds run from their own path only (never replace the installed `kata` client).
   Run them against an isolated home: unset `KATA_SERVER` and `KATA_AUTH_TOKEN`, set
@@ -33,6 +35,7 @@ upstream `.kata.toml` binds to it unchanged); parent workstream `dev-journey#9bh
 
 | Date | What | Why | Move + merge rule |
 |---|---|---|---|
+| 2026-09-15 | Adopt `dev` as the maintained fork branch; remove the obsolete project identity field; declare `docs/fork/frontend-overhaul/UX-PATTERNS.md` | Preserve the existing board and make the requested palette and overlay behavior explicit before implementation | Modify+Addition; retain the fork branch model and name-only project binding |
 | 2026-09-13 | Adopted this SOP and ledger (`FORK_CHANGES.md`) | Governance baseline | Addition; upstream never has this file |
 | 2026-09-14 | Build mode: built from the checkout. Macs: `make install` with mise's pinned Go/Bun (`GOBIN=$HOME/.local/bin`, which precedes `/opt/homebrew/bin` on PATH, so it shadows the Homebrew client — done on BigMac 2026-09-14 from 6756dde, M5 1002; Homebrew 0.16.0 keg kept pinned as rollback). Daemon: `deploy/railway/Dockerfile` + `entrypoint.sh` + `Dockerfile.dockerignore` (fork-only directory), documented in `docs/fork/migration/BUILD.md` (ark1). Version stamp stays upstream's `git describe` output; fork builds are identified by the `g<sha>` suffix | One documented way to produce fork binaries for both targets before the Railway cutover; no fork tags or release automation, per AGENTS.md | Addition; upstream has no container build. Hosted daemon runs the fork build from `deploy/railway/Dockerfile` at 6756dde since 2026-09-14 (M4 j3v2: `railway up` snapshot, deployment 721ec69c, schema 27; repo-connect deferred to M7). Second Mac still on Homebrew 0.16.0 until M5 completes there |
 | 2026-09-13 | internal/mcp/server.go: root not / if-then-else instead of root oneOf/allOf in tool input schemas (bfe11bb) | Messages API rejects top-level oneOf/allOf/anyOf; upstream PR kenn-io/kata#365 | Modify; keep ours (Henry 2026-09-14: upstream PRs are courtesy only) |
@@ -46,5 +49,5 @@ upstream `.kata.toml` binds to it unchanged); parent workstream `dev-journey#9bh
 
 | What | Why it stays |
 |---|---|
-| Upstream `.kata.toml` (project name `kata`) | Binding it unchanged gives the fork its own board with zero merge tax |
+| `.kata.toml` project name `kata` | Preserve the existing board; the legacy repository identity is no longer needed |
 | Upstream CI workflows | Need no secrets; free test coverage on fork pushes |
