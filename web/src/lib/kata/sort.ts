@@ -8,6 +8,10 @@ export interface KataTaskSort {
   direction: KataTaskSortDirection
 }
 
+type SortStorage = Pick<Storage, 'getItem' | 'setItem'>
+
+export const KATA_TASK_SORT_STORAGE_KEY = 'kata:issue-sort/v1'
+
 export const KATA_TASK_NATURAL_DIRECTION: Record<KataTaskSortKey, KataTaskSortDirection> = {
   priority: 'asc',
   title: 'asc',
@@ -19,6 +23,47 @@ export const KATA_TASK_NATURAL_DIRECTION: Record<KataTaskSortKey, KataTaskSortDi
 export const DEFAULT_KATA_TASK_SORT: KataTaskSort = {
   key: 'updated',
   direction: KATA_TASK_NATURAL_DIRECTION.updated,
+}
+
+function browserStorage(): SortStorage | null {
+  if (typeof window === 'undefined') return null
+  try {
+    return window.localStorage
+  } catch {
+    return null
+  }
+}
+
+export function loadKataTaskSort(storage: SortStorage | null = browserStorage()): KataTaskSort {
+  if (!storage) return DEFAULT_KATA_TASK_SORT
+  try {
+    const raw = storage.getItem(KATA_TASK_SORT_STORAGE_KEY)
+    if (!raw) return DEFAULT_KATA_TASK_SORT
+    const parsed = JSON.parse(raw) as Partial<KataTaskSort>
+    const validKeys: KataTaskSortKey[] = ['priority', 'title', 'updated', 'owner', 'id']
+    if (
+      parsed.key &&
+      validKeys.includes(parsed.key) &&
+      (parsed.direction === 'asc' || parsed.direction === 'desc')
+    ) {
+      return { key: parsed.key, direction: parsed.direction }
+    }
+  } catch {
+    // Corrupt — fall back to defaults silently.
+  }
+  return DEFAULT_KATA_TASK_SORT
+}
+
+export function persistKataTaskSort(
+  sort: KataTaskSort,
+  storage: SortStorage | null = browserStorage(),
+): void {
+  if (!storage) return
+  try {
+    storage.setItem(KATA_TASK_SORT_STORAGE_KEY, JSON.stringify(sort))
+  } catch {
+    // Storage unavailable — best-effort.
+  }
 }
 
 export function toggleKataTaskSort(current: KataTaskSort, key: KataTaskSortKey): KataTaskSort {

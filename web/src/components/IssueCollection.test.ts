@@ -12,7 +12,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { KataTaskSummary } from '../lib/kata/types'
 import type { KataCurrentView } from '../lib/kata/authority'
 import IssueCollection from './IssueCollection.svelte'
-import { KATA_TASK_COLUMNS_STORAGE_KEY } from '../lib/kata/columns'
+import {
+  defaultKataTaskColumnVisibility,
+  KATA_TASK_COLUMNS_STORAGE_KEY,
+  type KataTaskColumnVisibility,
+} from '../lib/kata/columns'
 
 interface IssueListRenderOptions {
   props: {
@@ -471,6 +475,54 @@ describe('IssueCollection', () => {
       key: 'title',
       direction: 'asc',
     })
+  })
+
+  it('uses controlled sort and column visibility instead of restored preferences', () => {
+    const columnVisibility: KataTaskColumnVisibility = {
+      ...defaultKataTaskColumnVisibility(),
+      owner: false,
+      tags: false,
+    }
+    const { container } = render(IssueCollection, {
+      props: {
+        currentView: viewWithIssues(baseIssues),
+        selectedIssueUID: null,
+        loading: false,
+        sort: { key: 'priority', direction: 'asc' },
+        columnVisibility,
+        onSelect: () => {},
+      },
+    })
+
+    expect(visibleRowTitles()).toEqual(['Review example project', 'Prepare summary'])
+    const header = container.querySelector<HTMLElement>('.table-header')!
+    expect(within(header).queryByText('Owner')).toBeNull()
+    expect(within(header).queryByText('Tags')).toBeNull()
+  })
+
+  it('emits exact next controlled sort and column visibility states', async () => {
+    const onSortChange = vi.fn()
+    const onColumnVisibilityChange = vi.fn()
+    const columnVisibility = defaultKataTaskColumnVisibility()
+    render(IssueCollection, {
+      props: {
+        currentView,
+        selectedIssueUID: null,
+        loading: false,
+        sort: { key: 'updated', direction: 'desc' },
+        columnVisibility,
+        onSortChange,
+        onColumnVisibilityChange,
+        onSelect: () => {},
+      },
+    })
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Sort by Priority' }))
+    expect(onSortChange).toHaveBeenCalledWith({ key: 'priority', direction: 'asc' })
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Columns' }))
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'Owner' }))
+    expect(onColumnVisibilityChange).toHaveBeenCalledWith({ ...columnVisibility, owner: false })
   })
 
   it('defaults flat lists to recently updated first', () => {

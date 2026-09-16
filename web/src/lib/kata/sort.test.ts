@@ -1,8 +1,11 @@
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 
 import type { KataTaskSummary } from './types'
 import {
   DEFAULT_KATA_TASK_SORT,
+  KATA_TASK_SORT_STORAGE_KEY,
+  loadKataTaskSort,
+  persistKataTaskSort,
   sortKataTasks,
   toggleKataTaskSort,
   type KataTaskSort,
@@ -39,6 +42,21 @@ describe('kata task sorting', () => {
       key: 'priority',
       direction: 'asc',
     })
+  })
+
+  test('loads and persists valid sort preferences', () => {
+    const setItem = vi.fn()
+    const storage = {
+      getItem: vi.fn(() => JSON.stringify({ key: 'owner', direction: 'asc' })),
+      setItem,
+    }
+
+    expect(loadKataTaskSort(storage)).toEqual({ key: 'owner', direction: 'asc' })
+    persistKataTaskSort({ key: 'priority', direction: 'desc' }, storage)
+    expect(setItem).toHaveBeenCalledWith(
+      KATA_TASK_SORT_STORAGE_KEY,
+      JSON.stringify({ key: 'priority', direction: 'desc' }),
+    )
   })
 
   test('keeps missing priority and owner values last in either direction', () => {

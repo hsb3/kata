@@ -12,7 +12,8 @@
   import type { KataTaskSearchFilters, KataTaskSummary } from '../lib/kata/types'
   import type { KataCurrentView } from '../lib/kata/authority'
   import {
-    DEFAULT_KATA_TASK_SORT,
+    loadKataTaskSort,
+    persistKataTaskSort,
     sortKataTasks,
     toggleKataTaskSort,
     type KataTaskSort,
@@ -46,6 +47,10 @@
     resetGeneration?: number
     navigationGeneration?: number
     revealRequest?: KataIssueRevealRequest | null
+    sort?: KataTaskSort
+    columnVisibility?: KataTaskColumnVisibility
+    onSortChange?: (sort: KataTaskSort) => void
+    onColumnVisibilityChange?: (visibility: KataTaskColumnVisibility) => void
     onSelect: (issue: KataTaskSummary) => void
     onOpenGraph?: ((issue: KataTaskSummary) => void) | undefined
   }
@@ -64,17 +69,22 @@
     resetGeneration = 0,
     navigationGeneration = 0,
     revealRequest = null,
+    sort: controlledSort = undefined,
+    columnVisibility: controlledColumnVisibility = undefined,
+    onSortChange = undefined,
+    onColumnVisibilityChange = undefined,
     onSelect,
     onOpenGraph = undefined,
   }: Props = $props()
 
-  const SORT_STORAGE_KEY = 'kata:issue-sort/v1'
   const restoredColumnVisibility = loadKataTaskColumnVisibility()
-  const restoredSort = loadSort()
+  const restoredSort = loadKataTaskSort()
   const initialSort = sortForColumnVisibility(restoredSort, restoredColumnVisibility)
-  let sort: KataTaskSort = $state(initialSort)
-  let columnVisibility = $state(restoredColumnVisibility)
-  if (initialSort !== restoredSort) persistSort(initialSort)
+  let localSort: KataTaskSort = $state(initialSort)
+  let localColumnVisibility = $state(restoredColumnVisibility)
+  let sort = $derived(controlledSort ?? localSort)
+  let columnVisibility = $derived(controlledColumnVisibility ?? localColumnVisibility)
+  if (initialSort !== restoredSort) persistKataTaskSort(initialSort)
 
   type TaskGridLayout = 'wide' | 'medium' | 'compact' | 'narrow'
 
@@ -249,38 +259,17 @@
   )
   let hasAnyExpandedRows = $derived(Object.values(expanded).some(Boolean))
 
-  function loadSort(): KataTaskSort {
-    if (typeof window === 'undefined') return DEFAULT_KATA_TASK_SORT
-    try {
-      const raw = window.localStorage.getItem(SORT_STORAGE_KEY)
-      if (!raw) return DEFAULT_KATA_TASK_SORT
-      const parsed = JSON.parse(raw) as Partial<KataTaskSort>
-      const validKeys: KataTaskSortKey[] = ['priority', 'title', 'updated', 'owner', 'id']
-      if (
-        parsed.key &&
-        validKeys.includes(parsed.key) &&
-        (parsed.direction === 'asc' || parsed.direction === 'desc')
-      ) {
-        return { key: parsed.key, direction: parsed.direction }
-      }
-    } catch {
-      // Corrupt — fall back to defaults silently.
-    }
-    return DEFAULT_KATA_TASK_SORT
-  }
-
-  function persistSort(next: KataTaskSort) {
-    if (typeof window === 'undefined') return
-    try {
-      window.localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(next))
-    } catch {
-      // Storage unavailable — best-effort.
-    }
-  }
-
   function handleSortClick(key: KataTaskSortKey) {
-    sort = toggleKataTaskSort(sort, key)
-    persistSort(sort)
+    setSort(toggleKataTaskSort(sort, key))
+  }
+
+  function setSort(next: KataTaskSort): void {
+    if (controlledSort !== undefined) {
+      onSortChange?.(next)
+      return
+    }
+    localSort = next
+    persistKataTaskSort(next)
   }
 
   function optionalColumnForSort(key: KataTaskSortKey): KataOptionalTaskColumn | null {
@@ -301,10 +290,13 @@
   function setColumnVisibility(next: KataTaskColumnVisibility): void {
     const nextSort = sortForColumnVisibility(sort, next)
     if (nextSort !== sort) {
-      sort = nextSort
-      persistSort(sort)
+      setSort(nextSort)
     }
-    columnVisibility = next
+    if (controlledColumnVisibility !== undefined) {
+      onColumnVisibilityChange?.(next)
+      return
+    }
+    localColumnVisibility = next
     persistKataTaskColumnVisibility(next)
   }
 
