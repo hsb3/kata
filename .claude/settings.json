@@ -1,0 +1,21 @@
+{
+  "enableAllProjectMcpServers": false,
+  "enabledPlugins": {
+    "atelier@dotfiles-agents": true,
+    "bun@dotfiles-agents": true,
+    "code-desk@dotfiles-agents": true,
+    "frontend-design@claude-plugins-official": true,
+    "kata@kata-oversight": true,
+    "ponytail@ponytail": true,
+    "solo-skills@dotfiles-agents": true,
+    "carbon@dotfiles-agents": false,
+    "diagrams@dotfiles-agents": false,
+    "pdf@openai-primary-runtime": false,
+    "pocketbase@dotfiles-agents": false,
+    "presentations@openai-primary-runtime": false,
+    "railway@claude-plugins-official": false,
+    "spreadsheets@openai-primary-runtime": false,
+    "template-creator@openai-primary-runtime": false,
+    "visualize@openai-bundled": false
+  }
+}
