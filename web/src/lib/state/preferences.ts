@@ -5,6 +5,7 @@ export interface Preferences {
   columns: string[]
   splitDirection: 'horizontal' | 'vertical'
   splitSize: number
+  sidebarCollapsed: boolean
   collapsedGroups: string[]
 }
 
@@ -13,6 +14,7 @@ export const defaultPreferences: Preferences = {
   columns: ['status', 'title'],
   splitDirection: 'vertical',
   splitSize: 420,
+  sidebarCollapsed: false,
   collapsedGroups: [],
 }
 
@@ -29,6 +31,7 @@ export function loadPreferences(storage: Storage = localStorage): Preferences {
         typeof value.splitSize === 'number' && value.splitSize >= 160 && value.splitSize <= 4000
           ? value.splitSize
           : defaultPreferences.splitSize,
+      sidebarCollapsed: value.sidebarCollapsed === true,
       collapsedGroups: stringArray(value.collapsedGroups, []),
     }
   } catch {
@@ -57,6 +60,7 @@ export function savePreferences(
       typeof current.splitSize === 'number' && current.splitSize >= 160 && current.splitSize <= 4000
         ? current.splitSize
         : defaultPreferences.splitSize,
+    sidebarCollapsed: current.sidebarCollapsed === true,
     collapsedGroups: stringArray(current.collapsedGroups, []),
   }
   storage.setItem(preferencesStorageKey, JSON.stringify(allowed))

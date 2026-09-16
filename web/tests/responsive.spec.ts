@@ -43,7 +43,29 @@ test('mobile navigation stays out of the task flow until opened', async ({ page,
   await expect(page).toHaveURL(/view=today/)
 })
 
-test('task filters stay inside a narrow list pane without overlapping', async ({ page, kata }) => {
+test('desktop navigation collapses into list space and persists after reload', async ({
+  page,
+  kata,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await kata.launch(page)
+  const list = page.locator('.kata-main')
+  const before = await list.evaluate((element) => element.getBoundingClientRect().width)
+
+  await page.getByRole('button', { name: 'Collapse navigation' }).click()
+  await expect(page.locator('.desktop-navigation')).toBeHidden()
+  await expect
+    .poll(() => list.evaluate((element) => element.getBoundingClientRect().width))
+    .toBeGreaterThan(before)
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Expand navigation' })).toBeVisible()
+  await expect(page.locator('.desktop-navigation')).toBeHidden()
+})
+
+test('task filters stay inside the desktop workspace without overlapping', async ({
+  page,
+  kata,
+}) => {
   await page.setViewportSize({ width: 1440, height: 800 })
   const credentials = await kata.launch(page)
   const issue = await kata.seedIssue(page, credentials, {
@@ -51,8 +73,8 @@ test('task filters stay inside a narrow list pane without overlapping', async ({
       'A long attention request that must keep its status visible when the list pane is narrow',
     metadata: { 'work.attention': 'stuck' },
   })
-  await page.goto(`${kata.origin}/kata?view=all-open&issue=${issue.uid}`)
-  await expect(page.getByRole('button', { name: 'Switch to stacked layout' })).toBeVisible()
+  await page.goto(`${kata.origin}/kata?view=all-open`)
+  await expect(page.getByRole('button', { name: 'Collapse navigation' })).toBeVisible()
 
   const layout = await page.locator('.kata-search-toolbar').evaluate((toolbar) => {
     const container = toolbar.getBoundingClientRect()
@@ -81,7 +103,6 @@ test('task filters stay inside a narrow list pane without overlapping', async ({
   })
 
   expect(layout).toEqual({ height: expect.any(Number), contained: true, overlaps: false })
-  expect(layout.height).toBeGreaterThan(30)
   const attention = page.locator(`.issue-row[data-uid="${issue.uid}"] .attention-chip`)
   await page.locator(`.issue-row[data-uid="${issue.uid}"]`).scrollIntoViewIfNeeded()
   expect(

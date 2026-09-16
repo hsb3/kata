@@ -34,7 +34,6 @@
   import KataDaemonSwitcher from './KataDaemonSwitcher.svelte'
   import QuickCapture from './QuickCapture.svelte'
   import Sidebar from './Sidebar.svelte'
-  import SplitLayout from './SplitLayout.svelte'
 
   type AppRoute = Exclude<KataRoute, { kind: 'route-error' }>
 
@@ -153,6 +152,7 @@
   let captureOpen = $state(false)
   let inboxChooserOpen = $state(false)
   let mobileNavigationOpen = $state(false)
+  let detailExpanded = $state(false)
   let linkFilters = $state(createKataLinkFilters('all'))
   let navigationGeneration = $state(0)
   let graphSelectedUID = $derived<string | null>(
@@ -245,15 +245,14 @@
     navigate({ ...route, graph: false })
   }
 
-  function toggleSplitDirection(): void {
-    onPreferencesChange({
-      ...preferences,
-      splitDirection: preferences.splitDirection === 'vertical' ? 'horizontal' : 'vertical',
-    })
+  function closeDetail(): void {
+    const next = { ...route, graph: false }
+    delete next.issueUID
+    navigate(next)
   }
 
-  function resizeSplit(size: number): void {
-    onPreferencesChange({ ...preferences, splitSize: size })
+  function toggleSidebar(): void {
+    onPreferencesChange({ ...preferences, sidebarCollapsed: !preferences.sidebarCollapsed })
   }
 
   function cycleTheme(): void {
@@ -445,12 +444,10 @@
         </IconButton>
         <button
           type="button"
-          onclick={toggleSplitDirection}
-          aria-label={preferences.splitDirection === 'vertical'
-            ? 'Switch to side-by-side layout'
-            : 'Switch to stacked layout'}
+          onclick={toggleSidebar}
+          aria-label={preferences.sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
           class="layout-label"
-          >{preferences.splitDirection === 'vertical' ? 'Side-by-side' : 'Stacked'}</button
+          >{preferences.sidebarCollapsed ? 'Show navigation' : 'Hide navigation'}</button
         >
         <button
           type="button"
@@ -476,7 +473,11 @@
         : 'This Kata session is read-only.'}
     </aside>
   {/if}
-  <div class="kata-layout" aria-busy={loading}>
+  <div
+    class:sidebar-collapsed={preferences.sidebarCollapsed}
+    class="kata-layout"
+    aria-busy={loading}
+  >
     <div class="desktop-navigation">
       {@render navigationSidebar()}
     </div>
@@ -485,21 +486,7 @@
       {#if mutationMessage}
         <p class="mutation-message" role="alert">{mutationMessage}</p>
       {/if}
-      {#if route.issueUID}
-        <SplitLayout
-          orientation={preferences.splitDirection}
-          primarySize={preferences.splitSize}
-          minPrimary={preferences.splitDirection === 'vertical' ? 220 : 320}
-          minSecondary={preferences.splitDirection === 'vertical' ? 220 : 360}
-          responsiveBreakpoint={700}
-          ariaLabel="Resize Kata panes"
-          onResize={resizeSplit}
-          primary={listPane}
-          secondary={detailPane}
-        />
-      {:else}
-        {@render listPane()}
-      {/if}
+      {@render listPane()}
     </div>
   </div>
 </section>
@@ -516,9 +503,27 @@
   </DetailDrawer>
 {/if}
 
-{#snippet listPane()}
-  <div class="list-column kata-list">
-    {#if route.issueUID && route.graph}
+{#if route.issueUID && !route.graph}
+  <DetailDrawer
+    ariaLabel="Task detail"
+    closable={false}
+    width={detailExpanded ? 'calc(100vw - 40px)' : 'min(720px, calc(100vw - 40px))'}
+    onclose={closeDetail}
+    header={detailHeader}
+  >
+    <div class="task-detail-content">{@render detailPane()}</div>
+  </DetailDrawer>
+{/if}
+
+{#if route.issueUID && route.graph}
+  <DetailDrawer
+    ariaLabel="Reachable task graph"
+    closable={false}
+    width="calc(100vw - 40px)"
+    onclose={closeGraph}
+    header={graphHeader}
+  >
+    <div class="graph-overlay-content">
       {#if projection.selected_graph && projection.selected_detail}
         <IssueGraph
           graph={projection.selected_graph}
@@ -535,7 +540,32 @@
           The reachable graph is unavailable from the current authority.
         </section>
       {/if}
-    {:else if viewName === 'needs-you' || viewName === 'ready'}
+    </div>
+  </DetailDrawer>
+{/if}
+
+{#snippet detailHeader()}
+  <div class="overlay-header-actions">
+    <button type="button" class="layout-label" onclick={() => (detailExpanded = !detailExpanded)}>
+      {detailExpanded ? 'Restore detail' : 'Expand detail'}
+    </button>
+    <button type="button" class="layout-label" aria-label="Close detail" onclick={closeDetail}
+      >Close</button
+    >
+  </div>
+{/snippet}
+
+{#snippet graphHeader()}
+  <div class="overlay-header-actions">
+    <button type="button" class="layout-label" aria-label="Close graph" onclick={closeGraph}
+      >Close</button
+    >
+  </div>
+{/snippet}
+
+{#snippet listPane()}
+  <div class="list-column kata-list">
+    {#if viewName === 'needs-you' || viewName === 'ready'}
       {#if viewName === 'ready'}
         <label class="action-scope"
           >Project
@@ -769,6 +799,14 @@
     grid-template-columns: 240px minmax(0, 1fr);
   }
 
+  .kata-layout.sidebar-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .kata-layout.sidebar-collapsed .desktop-navigation {
+    display: none;
+  }
+
   .desktop-navigation {
     min-width: 0;
     min-height: 0;
@@ -804,7 +842,34 @@
     width: 100%;
     min-height: 0;
     display: flex;
-    border-left: 1px solid var(--border-default);
+  }
+
+  .task-detail-content {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .task-detail-content .detail-column {
+    flex: 1 1 auto;
+  }
+
+  .graph-overlay-content {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .graph-overlay-content :global(.kata-graph-pane) {
+    flex: 1 1 auto;
+  }
+
+  .overlay-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    width: 100%;
   }
 
   .detail-unavailable {
@@ -840,6 +905,11 @@
 
     .mobile-navigation-trigger {
       display: inline-flex;
+    }
+
+    :global(.kit-detail-drawer-overlay:has(.task-detail-content) .kit-detail-drawer) {
+      width: 100vw !important;
+      max-width: 100vw;
     }
   }
 </style>
