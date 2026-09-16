@@ -1,13 +1,11 @@
 name: Tests
 
-# The PR dispatcher always calls the main-pinned workflow. That workflow
-# independently routes same-repository Linux jobs to the managed public fleet
-# and fork jobs to GitHub-hosted runners.
 on:
   pull_request:
 
-permissions: read-all
+permissions:
+  contents: read
 
 jobs:
   run:
-    uses: kenn-io/kata/.github/workflows/test.yml@main
+    uses: ./.github/workflows/test.yml

@@ -16,11 +16,11 @@ config="$KATA_HOME/config.toml"
 # kata never reads PUBLIC_ORIGIN itself (it is a security input validated
 # against Host/Origin), so the platform value has to be written into config.
 if [ -n "${PUBLIC_ORIGIN:-}" ]; then
-  if grep -qE '^[[:space:]]*\[web\]' "$config" 2>/dev/null; then
-    echo "kata-entrypoint: $config already defines [web]; PUBLIC_ORIGIN not applied" >&2
-  else
-    printf '[web]\npublic_origin = "%s"\n' "$PUBLIC_ORIGIN" >> "$config"
-  fi
+	if grep -qE '^[[:space:]]*\[web\]' "$config" 2>/dev/null; then
+		echo "kata-entrypoint: $config already defines [web]; PUBLIC_ORIGIN not applied" >&2
+	else
+		printf '[web]\npublic_origin = "%s"\n' "$PUBLIC_ORIGIN" >>"$config"
+	fi
 fi
 
 exec kata daemon start --foreground "$@"

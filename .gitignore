@@ -41,6 +41,10 @@ __pycache__/
 
 # Claude Code per-machine settings (shared .claude/ content can still be tracked)
 /.claude/settings.local.json
+/.claude/*.local.md
+/.agents/*.local.md
+/.codex/config.toml
+/.codex/agents/atelier-*.toml
 
 # IDE/editor
 .vscode/

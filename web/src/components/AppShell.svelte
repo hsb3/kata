@@ -1,10 +1,5 @@
 <script lang="ts">
   import { DetailDrawer, IconButton, TopBar, type TypeaheadOption } from '@kenn-io/kit-ui'
-  import MonitorIcon from '@lucide/svelte/icons/monitor'
-  import MenuIcon from '@lucide/svelte/icons/menu'
-  import MoonIcon from '@lucide/svelte/icons/moon'
-  import PlusIcon from '@lucide/svelte/icons/plus'
-  import SunIcon from '@lucide/svelte/icons/sun'
   import type { UIIssueReference } from '../lib/api/generated'
   import type { WebDaemonInfo } from '../lib/daemons/client'
   import type { KataRoute, ShareableFilters, SystemView } from '../lib/router'
@@ -15,6 +10,12 @@
   } from '../lib/kata/authority'
   import { createKataLinkFilters } from '../lib/kata/linkFilters'
   import { normalizeKataUISnapshot } from '../lib/kata/projection'
+  import { loadKataTaskSort, persistKataTaskSort, type KataTaskSort } from '../lib/kata/sort'
+  import {
+    loadKataTaskColumnVisibility,
+    persistKataTaskColumnVisibility,
+    type KataTaskColumnVisibility,
+  } from '../lib/kata/columns'
   import type {
     KataTaskMutationResponse,
     KataTaskCloseRequest,
@@ -25,16 +26,15 @@
   } from '../lib/kata/types'
   import type { UISnapshot } from '../lib/state/snapshot'
   import { defaultPreferences, type Preferences } from '../lib/state/preferences'
+  import { actionIcons } from '../lib/icons/actions'
   import ActionQueue from './ActionQueue.svelte'
   import IssueCollection from './IssueCollection.svelte'
   import IssueDetail from './IssueDetail.svelte'
-  import IssueFilters from './IssueFilters.svelte'
   import IssueGraph from './IssueGraph.svelte'
   import InboxProjectChooser from './InboxProjectChooser.svelte'
-  import KataDaemonSwitcher from './KataDaemonSwitcher.svelte'
   import QuickCapture from './QuickCapture.svelte'
   import Sidebar from './Sidebar.svelte'
-  import SplitLayout from './SplitLayout.svelte'
+  import WorkspacePalette from './WorkspacePalette.svelte'
 
   type AppRoute = Exclude<KataRoute, { kind: 'route-error' }>
 
@@ -151,10 +151,16 @@
   })
 
   let captureOpen = $state(false)
+  let paletteOpen = $state(false)
+  let paletteTrigger = $state<HTMLButtonElement | null>(null)
+  let taskSort = $state<KataTaskSort>(loadKataTaskSort())
+  let taskColumns = $state<KataTaskColumnVisibility>(loadKataTaskColumnVisibility())
   let inboxChooserOpen = $state(false)
   let mobileNavigationOpen = $state(false)
+  let detailExpanded = $state(false)
   let linkFilters = $state(createKataLinkFilters('all'))
   let navigationGeneration = $state(0)
+  let createProjectGeneration = $state(0)
   let graphSelectedUID = $derived<string | null>(
     route.issueUID && route.graph ? route.issueUID : null,
   )
@@ -245,21 +251,33 @@
     navigate({ ...route, graph: false })
   }
 
-  function toggleSplitDirection(): void {
-    onPreferencesChange({
-      ...preferences,
-      splitDirection: preferences.splitDirection === 'vertical' ? 'horizontal' : 'vertical',
-    })
+  function closeDetail(): void {
+    const next = { ...route, graph: false }
+    delete next.issueUID
+    navigate(next)
   }
 
-  function resizeSplit(size: number): void {
-    onPreferencesChange({ ...preferences, splitSize: size })
+  function toggleSidebar(): void {
+    onPreferencesChange({ ...preferences, sidebarCollapsed: !preferences.sidebarCollapsed })
   }
 
-  function cycleTheme(): void {
-    const theme =
-      preferences.theme === 'system' ? 'light' : preferences.theme === 'light' ? 'dark' : 'system'
-    onPreferencesChange({ ...preferences, theme })
+  function resetFilters(): void {
+    const next = { ...route, filters: emptyShareableFilters() }
+    if (searchFilters.scope.kind === 'project') next.projectUID = searchFilters.scope.project_uid
+    else delete next.projectUID
+    navigate(next)
+  }
+
+  function handlePaletteShortcut(event: KeyboardEvent): void {
+    if (event.key.toLowerCase() !== 'k' || (!event.ctrlKey && !event.metaKey)) return
+    const target = event.target
+    if (
+      target instanceof HTMLElement &&
+      (target.isContentEditable || target.closest('input, textarea, select'))
+    )
+      return
+    event.preventDefault()
+    paletteOpen = true
   }
 
   function beginNewTask(): void {
@@ -272,10 +290,6 @@
     await onDesignateInbox(projectUID)
     inboxChooserOpen = false
     captureOpen = true
-  }
-
-  function themeLabel(): string {
-    return preferences.theme[0]!.toUpperCase() + preferences.theme.slice(1)
   }
 
   function viewNameForRoute(current: AppRoute): KataTaskViewName {
@@ -369,6 +383,8 @@
   }
 </script>
 
+<svelte:window onkeydown={handlePaletteShortcut} />
+
 {#snippet navigationSidebar()}
   <Sidebar
     {areas}
@@ -388,6 +404,7 @@
     {searchFilters}
     projectCreationDisabled={!canMutate || mutationPending}
     {draftFenceGeneration}
+    {createProjectGeneration}
     inboxProjectUID={inboxProject?.uid}
     inboxDesignationDisabled={!canMutate || mutationPending}
     onOpenView={openView}
@@ -401,16 +418,7 @@
   <TopBar class="kata-header" ariaLabel="Kata workspace">
     {#snippet left()}
       <h1 class="kata-brand">Kata</h1>
-      {#if daemons.length > 0}
-        <KataDaemonSwitcher
-          {daemons}
-          activeId={activeDaemonID}
-          activeStatusLabel={daemonError ?? (reconnecting ? 'Reconnecting…' : undefined)}
-          activeStatusTone={daemonError ? 'error' : undefined}
-          disabled={daemonSwitching || mutationPending}
-          onSelect={onSelectDaemon}
-        />
-      {:else if daemonError || reconnecting}
+      {#if daemonError || reconnecting}
         <span
           class="daemon-fallback-status"
           class:error={daemonError}
@@ -431,36 +439,18 @@
               mobileNavigationOpen = true
             }}
           >
-            <MenuIcon size={15} strokeWidth={1.8} aria-hidden="true" />
+            <actionIcons.menu size={15} strokeWidth={1.8} aria-hidden="true" />
           </IconButton>
         </span>
-        <IconButton ariaLabel={`Theme: ${themeLabel()}`} title="Change theme" onclick={cycleTheme}>
-          {#if preferences.theme === 'light'}
-            <SunIcon size={15} strokeWidth={1.8} aria-hidden="true" />
-          {:else if preferences.theme === 'dark'}
-            <MoonIcon size={15} strokeWidth={1.8} aria-hidden="true" />
-          {:else}
-            <MonitorIcon size={15} strokeWidth={1.8} aria-hidden="true" />
-          {/if}
-        </IconButton>
         <button
           type="button"
-          onclick={toggleSplitDirection}
-          aria-label={preferences.splitDirection === 'vertical'
-            ? 'Switch to side-by-side layout'
-            : 'Switch to stacked layout'}
-          class="layout-label"
-          >{preferences.splitDirection === 'vertical' ? 'Side-by-side' : 'Stacked'}</button
+          bind:this={paletteTrigger}
+          class="icon-action"
+          aria-label="Open workspace palette"
+          title="Workspace palette (Ctrl/Cmd+K)"
+          onclick={() => (paletteOpen = true)}
         >
-        <button
-          type="button"
-          class="accent-button header-action"
-          disabled={!canMutate || mutationPending}
-          title="New task"
-          onclick={beginNewTask}
-        >
-          <PlusIcon size={13} strokeWidth={1.9} aria-hidden="true" />
-          <span>New task</span>
+          <actionIcons.menu size={15} strokeWidth={1.8} aria-hidden="true" />
         </button>
       </div>
     {/snippet}
@@ -476,7 +466,25 @@
         : 'This Kata session is read-only.'}
     </aside>
   {/if}
-  <div class="kata-layout" aria-busy={loading}>
+  <div
+    class:sidebar-collapsed={preferences.sidebarCollapsed}
+    class="kata-layout"
+    aria-busy={loading}
+  >
+    <div class="sidebar-rail">
+      <IconButton
+        ariaLabel={preferences.sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+        title={preferences.sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+        onclick={toggleSidebar}
+      >
+        {#if preferences.sidebarCollapsed}
+          <actionIcons.sidebarExpand size={15} strokeWidth={1.8} aria-hidden="true" />
+        {:else}
+          <actionIcons.sidebarCollapse size={15} strokeWidth={1.8} aria-hidden="true" />
+        {/if}
+      </IconButton>
+    </div>
+
     <div class="desktop-navigation">
       {@render navigationSidebar()}
     </div>
@@ -485,21 +493,7 @@
       {#if mutationMessage}
         <p class="mutation-message" role="alert">{mutationMessage}</p>
       {/if}
-      {#if route.issueUID}
-        <SplitLayout
-          orientation={preferences.splitDirection}
-          primarySize={preferences.splitSize}
-          minPrimary={preferences.splitDirection === 'vertical' ? 220 : 320}
-          minSecondary={preferences.splitDirection === 'vertical' ? 220 : 360}
-          responsiveBreakpoint={700}
-          ariaLabel="Resize Kata panes"
-          onResize={resizeSplit}
-          primary={listPane}
-          secondary={detailPane}
-        />
-      {:else}
-        {@render listPane()}
-      {/if}
+      {@render listPane()}
     </div>
   </div>
 </section>
@@ -516,9 +510,27 @@
   </DetailDrawer>
 {/if}
 
-{#snippet listPane()}
-  <div class="list-column kata-list">
-    {#if route.issueUID && route.graph}
+{#if route.issueUID && !route.graph}
+  <DetailDrawer
+    ariaLabel="Task detail"
+    closable={false}
+    width={detailExpanded ? 'calc(100vw - 40px)' : 'min(720px, calc(100vw - 40px))'}
+    onclose={closeDetail}
+    header={detailHeader}
+  >
+    <div class="task-detail-content">{@render detailPane()}</div>
+  </DetailDrawer>
+{/if}
+
+{#if route.issueUID && route.graph}
+  <DetailDrawer
+    ariaLabel="Reachable task graph"
+    closable={false}
+    width="calc(100vw - 40px)"
+    onclose={closeGraph}
+    header={graphHeader}
+  >
+    <div class="graph-overlay-content">
       {#if projection.selected_graph && projection.selected_detail}
         <IssueGraph
           graph={projection.selected_graph}
@@ -535,7 +547,40 @@
           The reachable graph is unavailable from the current authority.
         </section>
       {/if}
-    {:else if viewName === 'needs-you' || viewName === 'ready'}
+    </div>
+  </DetailDrawer>
+{/if}
+
+{#snippet detailHeader()}
+  <div class="overlay-header-actions">
+    <IconButton
+      ariaLabel={detailExpanded ? 'Restore detail' : 'Expand detail'}
+      title={detailExpanded ? 'Restore detail' : 'Expand detail'}
+      onclick={() => (detailExpanded = !detailExpanded)}
+    >
+      {#if detailExpanded}
+        <actionIcons.restore size={15} strokeWidth={1.8} aria-hidden="true" />
+      {:else}
+        <actionIcons.expand size={15} strokeWidth={1.8} aria-hidden="true" />
+      {/if}
+    </IconButton>
+    <IconButton ariaLabel="Close detail" title="Close detail" onclick={closeDetail}>
+      <actionIcons.close size={15} strokeWidth={1.8} aria-hidden="true" />
+    </IconButton>
+  </div>
+{/snippet}
+
+{#snippet graphHeader()}
+  <div class="overlay-header-actions">
+    <IconButton ariaLabel="Close graph" title="Close graph" onclick={closeGraph}>
+      <actionIcons.close size={15} strokeWidth={1.8} aria-hidden="true" />
+    </IconButton>
+  </div>
+{/snippet}
+
+{#snippet listPane()}
+  <div class="list-column kata-list">
+    {#if viewName === 'needs-you' || viewName === 'ready'}
       {#if viewName === 'ready'}
         <label class="action-scope"
           >Project
@@ -567,11 +612,6 @@
         onSelect={(issue) => selectIssue(issue.uid)}
       />
     {:else}
-      <IssueFilters
-        filters={searchFilters}
-        projects={projection.projects}
-        onChange={updateFilters}
-      />
       <IssueCollection
         {navigationGeneration}
         currentView={{
@@ -586,6 +626,16 @@
         {loading}
         statusFilter={searchFilters.status}
         readyIssueUIDs={projection.member_issue_uid_set}
+        sort={taskSort}
+        columnVisibility={taskColumns}
+        onSortChange={(next) => {
+          taskSort = next
+          persistKataTaskSort(next)
+        }}
+        onColumnVisibilityChange={(next) => {
+          taskColumns = next
+          persistKataTaskColumnVisibility(next)
+        }}
         onSelect={(issue) => selectIssue(issue.uid)}
         onOpenGraph={(issue) => openGraph(issue.uid)}
       />
@@ -642,6 +692,42 @@
   </div>
 {/snippet}
 
+<WorkspacePalette
+  open={paletteOpen}
+  trigger={paletteTrigger}
+  filters={searchFilters}
+  projects={projection.projects}
+  sort={taskSort}
+  columnVisibility={taskColumns}
+  {preferences}
+  {daemons}
+  {activeDaemonID}
+  {daemonSwitching}
+  {reconnecting}
+  {daemonError}
+  {canMutate}
+  {mutationPending}
+  onClose={() => (paletteOpen = false)}
+  onFiltersChange={updateFilters}
+  onReset={resetFilters}
+  onSortChange={(next) => {
+    taskSort = next
+    persistKataTaskSort(next)
+  }}
+  onColumnVisibilityChange={(next) => {
+    taskColumns = next
+    persistKataTaskColumnVisibility(next)
+  }}
+  {onPreferencesChange}
+  {onSelectDaemon}
+  onNewTask={beginNewTask}
+  onNewProject={() => {
+    paletteOpen = false
+    createProjectGeneration += 1
+  }}
+  onOpenView={openView}
+/>
+
 <QuickCapture
   open={captureOpen}
   disabled={!canMutate || mutationPending}
@@ -676,12 +762,20 @@
     border-radius: 4px;
     padding: 6px;
   }
-  .layout-label {
-    background: transparent;
+  .icon-action {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
     border: 0;
-    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-primary);
     cursor: pointer;
-    font: inherit;
+  }
+  .icon-action:hover {
+    background: var(--bg-hover);
   }
   .kata-feature {
     height: 100%;
@@ -734,39 +828,30 @@
     flex: 0 0 auto;
   }
 
-  .header-action {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    white-space: nowrap;
-  }
-
-  .accent-button {
-    border: 1px solid var(--accent-blue);
-    border-radius: var(--radius-sm);
-    background: var(--accent-blue);
-    color: var(--text-on-accent);
-    min-height: 28px;
-    padding: 4px 10px;
-    font: inherit;
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-  }
-
-  .accent-button:hover:not(:disabled) {
-    filter: brightness(1.08);
-  }
-
-  .accent-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
   .kata-layout {
     min-height: 0;
     flex: 1;
     display: grid;
-    grid-template-columns: 240px minmax(0, 1fr);
+    grid-template-columns: 32px 240px minmax(0, 1fr);
+  }
+
+  .kata-layout.sidebar-collapsed {
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+
+  .kata-layout.sidebar-collapsed .desktop-navigation {
+    display: none;
+  }
+
+  .sidebar-rail {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: var(--space-2);
+    border-right: 1px solid var(--border-default);
+    background: var(--bg-surface);
   }
 
   .desktop-navigation {
@@ -804,7 +889,34 @@
     width: 100%;
     min-height: 0;
     display: flex;
-    border-left: 1px solid var(--border-default);
+  }
+
+  .task-detail-content {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .task-detail-content .detail-column {
+    flex: 1 1 auto;
+  }
+
+  .graph-overlay-content {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .graph-overlay-content :global(.kata-graph-pane) {
+    flex: 1 1 auto;
+  }
+
+  .overlay-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    width: 100%;
   }
 
   .detail-unavailable {
@@ -834,12 +946,21 @@
       grid-template-columns: 1fr;
     }
 
+    .sidebar-rail {
+      display: none;
+    }
+
     .desktop-navigation {
       display: none;
     }
 
     .mobile-navigation-trigger {
       display: inline-flex;
+    }
+
+    :global(.kit-detail-drawer-overlay:has(.task-detail-content) .kit-detail-drawer) {
+      width: 100vw !important;
+      max-width: 100vw;
     }
   }
 </style>

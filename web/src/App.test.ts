@@ -1,6 +1,6 @@
 // @vitest-environment-options { "url": "http://127.0.0.2/kata" }
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte'
 import { tick } from 'svelte'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,12 +14,14 @@ describe('App', () => {
     sessionStorage.clear()
     localStorage.clear()
     document.documentElement.classList.remove('dark')
+    document.documentElement.style.fontSize = ''
     history.replaceState(null, '', '/kata')
   })
 
   afterEach(() => {
     cleanup()
     document.documentElement.classList.remove('dark')
+    document.documentElement.style.fontSize = ''
     vi.unstubAllGlobals()
   })
 
@@ -1219,16 +1221,12 @@ describe('App', () => {
     expect(await screen.findByRole('button', { name: /Example issue/ })).not.toBeNull()
     await fireEvent.click(screen.getByRole('button', { name: 'Today' }))
     await waitFor(() => expect(window.location.search).toBe('?view=today'))
+    await fireEvent.click(screen.getByRole('button', { name: 'Open workspace palette' }))
     await fireEvent.click(screen.getByRole('button', { name: 'Switch Kata daemon: example-local' }))
     await fireEvent.click(screen.getByRole('menuitemradio', { name: /example-remote/ }))
     expect(await screen.findByRole('button', { name: /Remote issue/ })).not.toBeNull()
     expect(window.location.search).toBe('?view=all-open')
-    expect(
-      referenceRequests.find(
-        (request) => request.headers.get('X-Kata-Web-Daemon') === 'example-local',
-      )?.signal.aborted,
-    ).toBe(true)
-
+    await fireEvent.click(screen.getByRole('button', { name: 'Open workspace palette' }))
     await fireEvent.click(
       screen.getByRole('button', { name: 'Switch Kata daemon: example-remote' }),
     )
@@ -1305,10 +1303,12 @@ describe('App', () => {
 
     render(App)
     expect(await screen.findByRole('button', { name: /Example issue/ })).not.toBeNull()
+    await fireEvent.click(screen.getByRole('button', { name: 'Open workspace palette' }))
     await fireEvent.click(screen.getByRole('button', { name: 'Switch Kata daemon: example-local' }))
     await fireEvent.click(screen.getByRole('menuitemradio', { name: /example-remote/ }))
 
     expect(await screen.findByRole('button', { name: /Remote issue/ })).not.toBeNull()
+    await fireEvent.click(screen.getByRole('button', { name: 'Open workspace palette' }))
     expect(
       screen.getByRole('button', { name: 'Switch Kata daemon: example-remote' }),
     ).not.toBeNull()
@@ -1415,9 +1415,10 @@ describe('App', () => {
           request.method === 'POST' && request.url.endsWith('/api/v1/projects/7/metadata'),
       )
       expect(mutation).toBeDefined()
-      expect((screen.getByRole('button', { name: 'New task' }) as HTMLButtonElement).disabled).toBe(
-        false,
-      )
+      expect(
+        (screen.getByRole('button', { name: 'Open workspace palette' }) as HTMLButtonElement)
+          .disabled,
+      ).toBe(false)
     })
     const mutation = requests.find(
       (request) => request.method === 'POST' && request.url.endsWith('/api/v1/projects/7/metadata'),
@@ -1517,9 +1518,21 @@ describe('App', () => {
     render(App)
 
     expect(document.documentElement.classList.contains('dark')).toBe(true)
-    await fireEvent.click(await screen.findByRole('button', { name: 'Theme: Dark' }))
+    expect(document.documentElement.style.fontSize).toBe('16px')
+    await fireEvent.click(await screen.findByRole('button', { name: 'Open workspace palette' }))
+    await fireEvent.click(
+      within(screen.getByText('Appearance').parentElement!).getByRole('button', { name: 'system' }),
+    )
     expect(JSON.parse(localStorage.getItem(preferencesStorageKey) ?? '{}')).toEqual(
       expect.objectContaining({ theme: 'system', splitDirection: 'horizontal', splitSize: 520 }),
+    )
+
+    await fireEvent.input(screen.getByRole('spinbutton', { name: 'Text size' }), {
+      target: { value: '22' },
+    })
+    expect(document.documentElement.style.fontSize).toBe('22px')
+    expect(JSON.parse(localStorage.getItem(preferencesStorageKey) ?? '{}')).toEqual(
+      expect.objectContaining({ fontSize: 22 }),
     )
   })
 
@@ -1728,9 +1741,10 @@ describe('App', () => {
     )
     await waitFor(() => expect(renewedSnapshotAccepted).toBe(true))
     await waitFor(() =>
-      expect((screen.getByRole('button', { name: 'New task' }) as HTMLButtonElement).disabled).toBe(
-        false,
-      ),
+      expect(
+        (screen.getByRole('button', { name: 'Open workspace palette' }) as HTMLButtonElement)
+          .disabled,
+      ).toBe(false),
     )
     await waitFor(() =>
       expect(

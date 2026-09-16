@@ -12,7 +12,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { KataTaskSummary } from '../lib/kata/types'
 import type { KataCurrentView } from '../lib/kata/authority'
 import IssueCollection from './IssueCollection.svelte'
-import { KATA_TASK_COLUMNS_STORAGE_KEY } from '../lib/kata/columns'
+import {
+  defaultKataTaskColumnVisibility,
+  KATA_TASK_COLUMNS_STORAGE_KEY,
+  type KataTaskColumnVisibility,
+} from '../lib/kata/columns'
+import { KATA_TASK_COLUMN_WIDTHS_STORAGE_KEY } from '../lib/kata/columnWidths'
 
 interface IssueListRenderOptions {
   props: {
@@ -105,12 +110,6 @@ describe('IssueCollection', () => {
     expect(screen.getByText('stuck')).toBeTruthy()
     expect(screen.getByText(/1 blockers/)).toBeTruthy()
     expect(screen.getByText('wontfix')).toBeTruthy()
-    await fireEvent.click(screen.getByRole('button', { name: /Columns/ }))
-    expect(screen.getByRole('checkbox', { name: 'Attention' })).toBeTruthy()
-    await fireEvent.click(screen.getByRole('button', { name: 'Show all' }))
-    expect((screen.getByRole('checkbox', { name: 'Attention' }) as HTMLInputElement).checked).toBe(
-      true,
-    )
   })
 
   it('expands snapshot-bounded descendants without loading task detail', async () => {
@@ -293,137 +292,6 @@ describe('IssueCollection', () => {
     expect(labels.slice(0, 3)).toEqual(['ID', 'Title', 'Updated'])
   })
 
-  it('hides an optional column while keeping ID and Title visible', async () => {
-    const { container } = render(IssueCollection, {
-      props: {
-        currentView,
-        selectedIssueUID: null,
-        loading: false,
-        onSelect: () => {},
-      },
-    })
-
-    const header = container.querySelector<HTMLElement>('.table-header')!
-    const row = screen.getByText('Review example project').closest('button')
-    const table = container.querySelector<HTMLElement>('.table')
-    expect(row).not.toBeNull()
-    expect(table).not.toBeNull()
-    expect(table!.style.getPropertyValue('--table-cols-wide')).toContain('minmax(96px, 200px)')
-
-    await fireEvent.click(screen.getByRole('button', { name: 'Columns' }))
-    await fireEvent.click(screen.getByRole('checkbox', { name: 'Tags' }))
-
-    expect(within(header).getByText('ID')).toBeTruthy()
-    expect(within(header).getByText('Title')).toBeTruthy()
-    expect(within(header).queryByText('Tags')).toBeNull()
-    expect(within(row!).queryByText('home · monthly')).toBeNull()
-    expect(table!.style.getPropertyValue('--table-cols-wide')).not.toContain('minmax(96px, 200px)')
-    expect(JSON.parse(localStorage.getItem(KATA_TASK_COLUMNS_STORAGE_KEY)!)).toEqual([
-      'updated',
-      'priority',
-      'due',
-      'owner',
-    ])
-  })
-
-  it('restores hidden columns after remount and Show all resets the preference', async () => {
-    const first = render(IssueCollection, {
-      props: {
-        currentView,
-        selectedIssueUID: null,
-        loading: false,
-        onSelect: () => {},
-      },
-    })
-
-    await fireEvent.click(screen.getByRole('button', { name: 'Columns' }))
-    for (const name of ['Updated', 'Priority', 'Due', 'Owner', 'Tags']) {
-      await fireEvent.click(screen.getByRole('checkbox', { name }))
-    }
-    first.unmount()
-
-    const second = render(IssueCollection, {
-      props: {
-        currentView,
-        selectedIssueUID: null,
-        loading: false,
-        onSelect: () => {},
-      },
-    })
-
-    const header = second.container.querySelector<HTMLElement>('.table-header')!
-    expect(within(header).queryByText('Updated')).toBeNull()
-    expect(within(header).queryByText('Priority')).toBeNull()
-    expect(within(header).queryByText('Due')).toBeNull()
-    expect(within(header).queryByText('Owner')).toBeNull()
-    expect(within(header).queryByText('Tags')).toBeNull()
-
-    await fireEvent.click(screen.getByRole('button', { name: 'Columns' }))
-    await fireEvent.click(screen.getByRole('button', { name: 'Show all' }))
-
-    expect(within(header).getByText('Priority')).toBeTruthy()
-    expect(within(header).getByText('Due')).toBeTruthy()
-    expect(within(header).getByText('Owner')).toBeTruthy()
-    expect(within(header).getByText('Tags')).toBeTruthy()
-    expect(JSON.parse(localStorage.getItem(KATA_TASK_COLUMNS_STORAGE_KEY)!)).toEqual([
-      'attention',
-      'updated',
-      'priority',
-      'due',
-      'owner',
-      'tags',
-    ])
-  })
-
-  it('reconciles a restored sort whose optional column is disabled', () => {
-    localStorage.setItem(
-      KATA_TASK_COLUMNS_STORAGE_KEY,
-      JSON.stringify(['updated', 'priority', 'due', 'tags']),
-    )
-    localStorage.setItem('kata:issue-sort/v1', JSON.stringify({ key: 'owner', direction: 'desc' }))
-
-    render(IssueCollection, {
-      props: {
-        currentView,
-        selectedIssueUID: null,
-        loading: false,
-        onSelect: () => {},
-      },
-    })
-
-    expect(screen.queryByRole('button', { name: /Sort by Owner/ })).toBeNull()
-    expect(
-      screen
-        .getByRole('button', { name: 'Sort by Title, currently ascending' })
-        .getAttribute('aria-pressed'),
-    ).toBe('true')
-    expect(JSON.parse(localStorage.getItem('kata:issue-sort/v1')!)).toEqual({
-      key: 'title',
-      direction: 'asc',
-    })
-  })
-
-  it('keeps column toggles usable when localStorage writes fail', async () => {
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new Error('quota')
-    })
-    const { container } = render(IssueCollection, {
-      props: {
-        currentView,
-        selectedIssueUID: null,
-        loading: false,
-        onSelect: () => {},
-      },
-    })
-
-    await fireEvent.click(screen.getByRole('button', { name: 'Columns' }))
-    await fireEvent.click(screen.getByRole('checkbox', { name: 'Owner' }))
-
-    expect(
-      within(container.querySelector<HTMLElement>('.table-header')!).queryByText('Owner'),
-    ).toBeNull()
-  })
-
   it('falls back to all columns for malformed saved data', () => {
     localStorage.setItem(KATA_TASK_COLUMNS_STORAGE_KEY, JSON.stringify({ visible: ['updated'] }))
     const { container } = render(IssueCollection, {
@@ -441,36 +309,103 @@ describe('IssueCollection', () => {
     }
   })
 
-  it('resets an invisible active sort to Title ascending', async () => {
+  it('resizes a column by dragging its handle and persists the width', async () => {
+    const { container } = render(IssueCollection, {
+      props: { currentView, selectedIssueUID: null, loading: false, onSelect: () => {} },
+    })
+
+    const handle = screen.getByRole('separator', { name: 'Resize Updated column' })
+    await fireEvent.pointerDown(handle, { clientX: 100, pointerId: 1 })
+    await fireEvent.pointerMove(handle, { clientX: 160, pointerId: 1 })
+    await fireEvent.pointerUp(handle, { clientX: 160, pointerId: 1 })
+
+    const table = container.querySelector<HTMLElement>('.table')!
+    expect(table.style.getPropertyValue('--table-cols-wide')).toContain('60px')
+    expect(JSON.parse(localStorage.getItem(KATA_TASK_COLUMN_WIDTHS_STORAGE_KEY) ?? '{}')).toEqual({
+      updated: 60,
+    })
+  })
+
+  it('resets a resized column to its default width on a rapid second press', async () => {
+    localStorage.setItem(KATA_TASK_COLUMN_WIDTHS_STORAGE_KEY, JSON.stringify({ updated: 200 }))
+    const { container } = render(IssueCollection, {
+      props: { currentView, selectedIssueUID: null, loading: false, onSelect: () => {} },
+    })
+
+    const table = container.querySelector<HTMLElement>('.table')!
+    expect(table.style.getPropertyValue('--table-cols-wide')).toContain('200px')
+
+    // The resize handle suppresses native click/dblclick synthesis (its
+    // pointerdown calls preventDefault), so reset is driven by two raw
+    // pointerdowns close together instead of a dblclick event.
+    const handle = screen.getByRole('separator', { name: 'Resize Updated column' })
+    await fireEvent.pointerDown(handle, { clientX: 100, pointerId: 1 })
+    await fireEvent.pointerUp(handle, { clientX: 100, pointerId: 1 })
+    await fireEvent.pointerDown(handle, { clientX: 100, pointerId: 1 })
+
+    // The default (non-custom) wide-layout track for Updated, restored once
+    // the override is cleared.
+    expect(table.style.getPropertyValue('--table-cols-wide')).toContain('minmax(64px, 80px)')
+    expect(JSON.parse(localStorage.getItem(KATA_TASK_COLUMN_WIDTHS_STORAGE_KEY) ?? '{}')).toEqual(
+      {},
+    )
+  })
+
+  it('resizes a column with the arrow keys when its handle is focused', async () => {
+    render(IssueCollection, {
+      props: { currentView, selectedIssueUID: null, loading: false, onSelect: () => {} },
+    })
+
+    const handle = screen.getByRole('separator', { name: 'Resize Updated column' })
+    await fireEvent.keyDown(handle, { key: 'ArrowRight' })
+
+    // jsdom performs no real layout, so the handle's unset starting width
+    // measures as 0 and the +10px key step clamps up to the column minimum.
+    expect(JSON.parse(localStorage.getItem(KATA_TASK_COLUMN_WIDTHS_STORAGE_KEY) ?? '{}')).toEqual({
+      updated: 56,
+    })
+  })
+
+  it('uses controlled sort and column visibility instead of restored preferences', () => {
+    const columnVisibility: KataTaskColumnVisibility = {
+      ...defaultKataTaskColumnVisibility(),
+      owner: false,
+      tags: false,
+    }
+    const { container } = render(IssueCollection, {
+      props: {
+        currentView: viewWithIssues(baseIssues),
+        selectedIssueUID: null,
+        loading: false,
+        sort: { key: 'priority', direction: 'asc' },
+        columnVisibility,
+        onSelect: () => {},
+      },
+    })
+
+    expect(visibleRowTitles()).toEqual(['Review example project', 'Prepare summary'])
+    const header = container.querySelector<HTMLElement>('.table-header')!
+    expect(within(header).queryByText('Owner')).toBeNull()
+    expect(within(header).queryByText('Tags')).toBeNull()
+  })
+
+  it('emits the next controlled sort state', async () => {
+    const onSortChange = vi.fn()
+    const columnVisibility = defaultKataTaskColumnVisibility()
     render(IssueCollection, {
       props: {
         currentView,
         selectedIssueUID: null,
         loading: false,
+        sort: { key: 'updated', direction: 'desc' },
+        columnVisibility,
+        onSortChange,
         onSelect: () => {},
       },
     })
 
     await fireEvent.click(screen.getByRole('button', { name: 'Sort by Priority' }))
-    expect(
-      screen
-        .getByRole('button', { name: 'Sort by Priority, currently ascending' })
-        .getAttribute('aria-pressed'),
-    ).toBe('true')
-
-    await fireEvent.click(screen.getByRole('button', { name: 'Columns' }))
-    await fireEvent.click(screen.getByRole('checkbox', { name: 'Priority' }))
-
-    expect(screen.queryByRole('button', { name: /Sort by Priority/ })).toBeNull()
-    expect(
-      screen
-        .getByRole('button', { name: 'Sort by Title, currently ascending' })
-        .getAttribute('aria-pressed'),
-    ).toBe('true')
-    expect(JSON.parse(localStorage.getItem('kata:issue-sort/v1')!)).toEqual({
-      key: 'title',
-      direction: 'asc',
-    })
+    expect(onSortChange).toHaveBeenCalledWith({ key: 'priority', direction: 'asc' })
   })
 
   it('defaults flat lists to recently updated first', () => {

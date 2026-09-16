@@ -70,6 +70,14 @@
       ;(explicit ?? primary ?? action)?.focus()
     })
   })
+
+  function dismissOnEscape(event: KeyboardEvent): void {
+    if (event.key !== 'Escape') return
+    if (event.target instanceof Element && event.target.closest('[aria-expanded="true"]')) return
+    event.preventDefault()
+    event.stopPropagation()
+    onClose()
+  }
 </script>
 
 {#snippet footerContent()}
@@ -82,19 +90,21 @@
   <!-- Conditional spreads: kit Modal's optional props are declared without
        `| undefined`, so explicit undefined fails under
        exactOptionalPropertyTypes. Omit the props instead. -->
-  <KitModal
-    {...title !== undefined ? { title } : {}}
-    {...ariaLabel !== undefined ? { ariaLabel } : {}}
-    {...footer ? { footer: footerContent as KitModalFooter } : {}}
-    width="100%"
-    maxWidth={`min(${width}px, calc(100vw - 40px))`}
-    closable={showClose}
-    onclose={onClose}
-  >
-    <div class="modal-scope" bind:this={bodyEl}>
-      {@render children()}
-    </div>
-  </KitModal>
+  <div class="modal-scope" role="presentation" onkeydown={dismissOnEscape}>
+    <KitModal
+      {...title !== undefined ? { title } : {}}
+      {...ariaLabel !== undefined ? { ariaLabel } : {}}
+      {...footer ? { footer: footerContent as KitModalFooter } : {}}
+      width="100%"
+      maxWidth={`min(${width}px, calc(100vw - 40px))`}
+      closable={showClose}
+      onclose={onClose}
+    >
+      <div class="modal-scope" bind:this={bodyEl}>
+        {@render children()}
+      </div>
+    </KitModal>
+  </div>
 {/if}
 
 <style>

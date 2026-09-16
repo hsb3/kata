@@ -1,6 +1,7 @@
 <script lang="ts">
   /* eslint-disable svelte/prefer-svelte-reactivity */
   import { onDestroy, tick } from 'svelte'
+  import { SplitResizeHandle, type SplitResizeEvent } from '@kenn-io/kit-ui'
   import ChevronDownIcon from '@lucide/svelte/icons/chevron-down'
   import ChevronRightIcon from '@lucide/svelte/icons/chevron-right'
   import ChevronUpIcon from '@lucide/svelte/icons/chevron-up'
@@ -12,20 +13,27 @@
   import type { KataTaskSearchFilters, KataTaskSummary } from '../lib/kata/types'
   import type { KataCurrentView } from '../lib/kata/authority'
   import {
-    DEFAULT_KATA_TASK_SORT,
+    loadKataTaskSort,
+    persistKataTaskSort,
     sortKataTasks,
     toggleKataTaskSort,
     type KataTaskSort,
     type KataTaskSortKey,
   } from '../lib/kata/sort'
-  import ColumnPicker from './ColumnPicker.svelte'
   import {
     KATA_OPTIONAL_TASK_COLUMNS,
     loadKataTaskColumnVisibility,
-    persistKataTaskColumnVisibility,
     type KataOptionalTaskColumn,
     type KataTaskColumnVisibility,
   } from '../lib/kata/columns'
+  import {
+    clampTaskColumnWidth,
+    loadKataTaskColumnWidths,
+    MAX_TASK_COLUMN_WIDTH,
+    MIN_TASK_COLUMN_WIDTH,
+    persistKataTaskColumnWidths,
+    type KataTaskColumnWidths,
+  } from '../lib/kata/columnWidths'
 
   export interface KataIssueRevealRequest {
     uid: string
@@ -46,6 +54,10 @@
     resetGeneration?: number
     navigationGeneration?: number
     revealRequest?: KataIssueRevealRequest | null
+    sort?: KataTaskSort
+    columnVisibility?: KataTaskColumnVisibility
+    onSortChange?: (sort: KataTaskSort) => void
+    onColumnVisibilityChange?: (visibility: KataTaskColumnVisibility) => void
     onSelect: (issue: KataTaskSummary) => void
     onOpenGraph?: ((issue: KataTaskSummary) => void) | undefined
   }
@@ -64,17 +76,28 @@
     resetGeneration = 0,
     navigationGeneration = 0,
     revealRequest = null,
+    sort: controlledSort = undefined,
+    columnVisibility: controlledColumnVisibility = undefined,
+    onSortChange = undefined,
     onSelect,
     onOpenGraph = undefined,
   }: Props = $props()
 
-  const SORT_STORAGE_KEY = 'kata:issue-sort/v1'
   const restoredColumnVisibility = loadKataTaskColumnVisibility()
-  const restoredSort = loadSort()
-  const initialSort = sortForColumnVisibility(restoredSort, restoredColumnVisibility)
-  let sort: KataTaskSort = $state(initialSort)
-  let columnVisibility = $state(restoredColumnVisibility)
-  if (initialSort !== restoredSort) persistSort(initialSort)
+  const restoredSort = loadKataTaskSort()
+  let localSort = $state(restoredSort)
+  let sort = $derived(controlledSort ?? localSort)
+  let columnVisibility = $derived(controlledColumnVisibility ?? restoredColumnVisibility)
+  let columnWidths = $state<KataTaskColumnWidths>(loadKataTaskColumnWidths())
+  let resizeStartWidth = 0
+  // A second pointerdown on the same handle within this window is treated as
+  // a "double-click to reset" gesture. The SplitResizeHandle's pointerdown
+  // handler calls preventDefault unconditionally, which suppresses the
+  // browser's synthesized click/dblclick events entirely, so double-click
+  // can't be observed the usual way — the two raw pointerdowns are the only
+  // signal left.
+  const DOUBLE_PRESS_RESET_MS = 400
+  let lastColumnResizeStart: { column: KataOptionalTaskColumn; time: number } | null = null
 
   type TaskGridLayout = 'wide' | 'medium' | 'compact' | 'narrow'
 
@@ -135,6 +158,8 @@
   }
 
   function taskColumnTrack(layout: TaskGridLayout, column: KataOptionalTaskColumn): string | null {
+    const customWidth = columnWidths[column]
+    if (customWidth !== undefined) return `${customWidth}px`
     const track = TASK_COLUMN_TRACKS[layout][column]
     if (track || column !== 'owner' || sort.key !== 'owner') return track
     return TASK_COLUMN_TRACKS.medium.owner
@@ -249,71 +274,61 @@
   )
   let hasAnyExpandedRows = $derived(Object.values(expanded).some(Boolean))
 
-  function loadSort(): KataTaskSort {
-    if (typeof window === 'undefined') return DEFAULT_KATA_TASK_SORT
-    try {
-      const raw = window.localStorage.getItem(SORT_STORAGE_KEY)
-      if (!raw) return DEFAULT_KATA_TASK_SORT
-      const parsed = JSON.parse(raw) as Partial<KataTaskSort>
-      const validKeys: KataTaskSortKey[] = ['priority', 'title', 'updated', 'owner', 'id']
-      if (
-        parsed.key &&
-        validKeys.includes(parsed.key) &&
-        (parsed.direction === 'asc' || parsed.direction === 'desc')
-      ) {
-        return { key: parsed.key, direction: parsed.direction }
-      }
-    } catch {
-      // Corrupt — fall back to defaults silently.
-    }
-    return DEFAULT_KATA_TASK_SORT
-  }
-
-  function persistSort(next: KataTaskSort) {
-    if (typeof window === 'undefined') return
-    try {
-      window.localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(next))
-    } catch {
-      // Storage unavailable — best-effort.
-    }
-  }
-
   function handleSortClick(key: KataTaskSortKey) {
-    sort = toggleKataTaskSort(sort, key)
-    persistSort(sort)
+    setSort(toggleKataTaskSort(sort, key))
   }
 
-  function optionalColumnForSort(key: KataTaskSortKey): KataOptionalTaskColumn | null {
-    if (key === 'updated' || key === 'priority' || key === 'owner') return key
-    return null
-  }
-
-  function sortForColumnVisibility(
-    current: KataTaskSort,
-    visibility: KataTaskColumnVisibility,
-  ): KataTaskSort {
-    const activeSortColumn = optionalColumnForSort(current.key)
-    return activeSortColumn && !visibility[activeSortColumn]
-      ? { key: 'title', direction: 'asc' }
-      : current
-  }
-
-  function setColumnVisibility(next: KataTaskColumnVisibility): void {
-    const nextSort = sortForColumnVisibility(sort, next)
-    if (nextSort !== sort) {
-      sort = nextSort
-      persistSort(sort)
+  function setSort(next: KataTaskSort): void {
+    if (controlledSort !== undefined) {
+      onSortChange?.(next)
+      return
     }
-    columnVisibility = next
-    persistKataTaskColumnVisibility(next)
+    localSort = next
+    persistKataTaskSort(next)
   }
 
-  function showAllColumns(): void {
-    setColumnVisibility(
-      Object.fromEntries(
-        KATA_OPTIONAL_TASK_COLUMNS.map(({ id }) => [id, true]),
-      ) as KataTaskColumnVisibility,
-    )
+  function currentColumnWidth(column: KataOptionalTaskColumn, headerCell: HTMLElement): number {
+    return columnWidths[column] ?? headerCell.getBoundingClientRect().width
+  }
+
+  function beginColumnResize(
+    event: KeyboardEvent | PointerEvent,
+    column: KataOptionalTaskColumn,
+  ): void {
+    const headerCell = (event.currentTarget as HTMLElement).parentElement as HTMLElement
+    if (event.type === 'pointerdown') {
+      const now = Date.now()
+      if (
+        lastColumnResizeStart?.column === column &&
+        now - lastColumnResizeStart.time < DOUBLE_PRESS_RESET_MS
+      ) {
+        lastColumnResizeStart = null
+        resetColumnWidth(column)
+        resizeStartWidth = currentColumnWidth(column, headerCell)
+        return
+      }
+      lastColumnResizeStart = { column, time: now }
+    }
+    resizeStartWidth = currentColumnWidth(column, headerCell)
+  }
+
+  function resizeColumn(column: KataOptionalTaskColumn, event: SplitResizeEvent): void {
+    columnWidths = {
+      ...columnWidths,
+      [column]: clampTaskColumnWidth(resizeStartWidth + event.delta),
+    }
+  }
+
+  function endColumnResize(): void {
+    persistKataTaskColumnWidths(columnWidths)
+  }
+
+  function resetColumnWidth(column: KataOptionalTaskColumn): void {
+    if (columnWidths[column] === undefined) return
+    const next = { ...columnWidths }
+    delete next[column]
+    columnWidths = next
+    persistKataTaskColumnWidths(columnWidths)
   }
 
   function viewTitle(view: KataCurrentView): string {
@@ -782,11 +797,6 @@
         >
       </div>
       <div class="header-actions">
-        <ColumnPicker
-          visibility={columnVisibility}
-          onchange={setColumnVisibility}
-          onShowAll={showAllColumns}
-        />
         {#if hasExpandableVisibleRows || hasAnyExpandedRows}
           <div class="tree-actions" aria-label="Task tree controls">
             <button
@@ -866,57 +876,81 @@
             <ChevronDownIcon size={11} strokeWidth={2} />
           {/if}
         </button>
-        {#if columnVisibility.attention}<span class="col col-static">Attention</span>{/if}
+        {#if columnVisibility.attention}
+          <span class="col-wrap">
+            <span class="col col-static">Attention</span>
+            {@render resizeHandle('attention')}
+          </span>
+        {/if}
         {#if columnVisibility.updated}
-          <button
-            class="col col-updated"
-            type="button"
-            aria-label={sortLabel('updated', 'Updated')}
-            aria-pressed={sortIndicator('updated') !== null}
-            onclick={() => handleSortClick('updated')}
-          >
-            <span>Updated</span>
-            {#if sortIndicator('updated') === 'asc'}
-              <ChevronUpIcon size={11} strokeWidth={2} />
-            {:else if sortIndicator('updated') === 'desc'}
-              <ChevronDownIcon size={11} strokeWidth={2} />
-            {/if}
-          </button>
+          <span class="col-wrap">
+            <button
+              class="col col-updated"
+              type="button"
+              aria-label={sortLabel('updated', 'Updated')}
+              aria-pressed={sortIndicator('updated') !== null}
+              onclick={() => handleSortClick('updated')}
+            >
+              <span>Updated</span>
+              {#if sortIndicator('updated') === 'asc'}
+                <ChevronUpIcon size={11} strokeWidth={2} />
+              {:else if sortIndicator('updated') === 'desc'}
+                <ChevronDownIcon size={11} strokeWidth={2} />
+              {/if}
+            </button>
+            {@render resizeHandle('updated')}
+          </span>
         {/if}
         {#if columnVisibility.priority}
-          <button
-            class="col col-priority"
-            type="button"
-            aria-label={sortLabel('priority', 'Priority')}
-            aria-pressed={sortIndicator('priority') !== null}
-            onclick={() => handleSortClick('priority')}
-          >
-            <span>Priority</span>
-            {#if sortIndicator('priority') === 'asc'}
-              <ChevronUpIcon size={11} strokeWidth={2} />
-            {:else if sortIndicator('priority') === 'desc'}
-              <ChevronDownIcon size={11} strokeWidth={2} />
-            {/if}
-          </button>
+          <span class="col-wrap">
+            <button
+              class="col col-priority"
+              type="button"
+              aria-label={sortLabel('priority', 'Priority')}
+              aria-pressed={sortIndicator('priority') !== null}
+              onclick={() => handleSortClick('priority')}
+            >
+              <span>Priority</span>
+              {#if sortIndicator('priority') === 'asc'}
+                <ChevronUpIcon size={11} strokeWidth={2} />
+              {:else if sortIndicator('priority') === 'desc'}
+                <ChevronDownIcon size={11} strokeWidth={2} />
+              {/if}
+            </button>
+            {@render resizeHandle('priority')}
+          </span>
         {/if}
-        {#if columnVisibility.due}<span class="col col-due col-static">Due</span>{/if}
+        {#if columnVisibility.due}
+          <span class="col-wrap">
+            <span class="col col-due col-static">Due</span>
+            {@render resizeHandle('due')}
+          </span>
+        {/if}
         {#if columnVisibility.owner}
-          <button
-            class="col col-owner"
-            type="button"
-            aria-label={sortLabel('owner', 'Owner')}
-            aria-pressed={sortIndicator('owner') !== null}
-            onclick={() => handleSortClick('owner')}
-          >
-            <span>Owner</span>
-            {#if sortIndicator('owner') === 'asc'}
-              <ChevronUpIcon size={11} strokeWidth={2} />
-            {:else if sortIndicator('owner') === 'desc'}
-              <ChevronDownIcon size={11} strokeWidth={2} />
-            {/if}
-          </button>
+          <span class="col-wrap">
+            <button
+              class="col col-owner"
+              type="button"
+              aria-label={sortLabel('owner', 'Owner')}
+              aria-pressed={sortIndicator('owner') !== null}
+              onclick={() => handleSortClick('owner')}
+            >
+              <span>Owner</span>
+              {#if sortIndicator('owner') === 'asc'}
+                <ChevronUpIcon size={11} strokeWidth={2} />
+              {:else if sortIndicator('owner') === 'desc'}
+                <ChevronDownIcon size={11} strokeWidth={2} />
+              {/if}
+            </button>
+            {@render resizeHandle('owner')}
+          </span>
         {/if}
-        {#if columnVisibility.tags}<span class="col col-tags col-static">Tags</span>{/if}
+        {#if columnVisibility.tags}
+          <span class="col-wrap">
+            <span class="col col-tags col-static">Tags</span>
+            {@render resizeHandle('tags')}
+          </span>
+        {/if}
       </div>
 
       {#if visibleRootIssues.length === 0}
@@ -951,6 +985,20 @@
     </div>
   </div>
 </section>
+
+{#snippet resizeHandle(column: KataOptionalTaskColumn)}
+  <SplitResizeHandle
+    class="col-resize-handle"
+    ariaLabel={`Resize ${KATA_OPTIONAL_TASK_COLUMNS.find((entry) => entry.id === column)?.label ?? column} column`}
+    ariaValueMin={MIN_TASK_COLUMN_WIDTH}
+    ariaValueMax={MAX_TASK_COLUMN_WIDTH}
+    ariaValueNow={columnWidths[column] ?? MIN_TASK_COLUMN_WIDTH}
+    keyboardStep={10}
+    onResizeStart={(event) => beginColumnResize(event, column)}
+    onResize={(event) => resizeColumn(column, event)}
+    onResizeEnd={endColumnResize}
+  />
+{/snippet}
 
 {#snippet row(issue: KataTaskSummary, depth = 0)}
   {@const priority = priorityLabel(issue.priority)}
@@ -1209,7 +1257,7 @@
     gap: var(--table-gap);
     width: 100%;
     min-width: var(--table-min-width);
-    padding: 5px 6px;
+    padding: 0.5em 6px;
     align-items: center;
     background: var(--bg-surface);
     border-bottom: 1px solid var(--border-default);
@@ -1218,6 +1266,18 @@
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+  }
+
+  .col-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .col-wrap .col {
+    flex: 1;
+    min-width: 0;
   }
 
   .col {
@@ -1236,6 +1296,21 @@
     cursor: pointer;
     border-radius: var(--radius-sm);
     transition: color 0.1s;
+  }
+
+  .col-resize-handle {
+    position: absolute;
+    top: 0;
+    right: calc(var(--table-gap) / -2 - 1px);
+    width: var(--table-gap);
+    height: 100%;
+    background: transparent;
+    z-index: 1;
+  }
+
+  .col-resize-handle:hover,
+  .col-resize-handle:active {
+    background: color-mix(in srgb, var(--accent-blue) 35%, transparent);
   }
 
   .col:hover,
@@ -1318,13 +1393,13 @@
     grid-template-columns: var(--table-cols);
     gap: var(--table-gap);
     align-items: center;
-    padding: 3px 6px;
+    padding: 0.25em 6px;
     border-radius: 0;
     text-align: left;
     border: 0;
     background: transparent;
     color: inherit;
-    min-height: 26px;
+    min-height: 2em;
     transition: background 0.08s;
   }
 

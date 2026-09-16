@@ -1,7 +1,6 @@
 <script lang="ts">
   import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js'
-  import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left'
-  import { FilterDropdown } from '@kenn-io/kit-ui'
+  import { FilterDropdown, IconButton } from '@kenn-io/kit-ui'
   import { SvelteMap } from 'svelte/reactivity'
   import {
     Background,
@@ -33,6 +32,7 @@
     type KataGraphLayoutDirection,
     type KataGraphNode,
   } from '../lib/graph/layout'
+  import { actionIcons } from '../lib/icons/actions'
 
   type KataGraphLayoutMode = 'compact' | 'elk'
   type KataGraphDirectionChoice = 'follow' | KataGraphLayoutDirection
@@ -613,10 +613,9 @@
 >
   <header class="graph-toolbar">
     <div class="graph-title-row">
-      <button type="button" class="toolbar-button" aria-label="Back to task list" onclick={onBack}>
-        <ArrowLeftIcon size={14} strokeWidth={1.9} aria-hidden="true" />
-        <span>Tasks</span>
-      </button>
+      <IconButton ariaLabel="Back to task list" title="Back to task list" onclick={onBack}>
+        <actionIcons.back size={14} strokeWidth={1.9} aria-hidden="true" />
+      </IconButton>
       <div class="graph-source">
         <strong title={source.qualified_id || source.uid}
           >{source.title || 'Reachable graph'}</strong
@@ -720,31 +719,6 @@
 
   .graph-control-row {
     flex-wrap: wrap;
-  }
-
-  .toolbar-button {
-    box-sizing: border-box;
-    min-height: 28px;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    border: 1px solid var(--border-default);
-    border-radius: 6px;
-    background: var(--bg-primary);
-    color: var(--text-secondary);
-    padding: 4px 8px;
-    font: inherit;
-    font-size: var(--font-size-xs);
-    cursor: pointer;
-  }
-
-  .toolbar-button {
-    flex: 0 0 auto;
-  }
-
-  .toolbar-button:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
   }
 
   .graph-filter-menu {

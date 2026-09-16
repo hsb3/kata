@@ -52,7 +52,9 @@ describe('AppShell', () => {
     expect(header).not.toBeNull()
     expect(header?.classList.contains('kit-top-bar')).toBe(true)
     expect(within(header as HTMLElement).getByRole('heading', { name: 'Kata' })).not.toBeNull()
-    expect(within(header as HTMLElement).getByRole('button', { name: 'New task' })).not.toBeNull()
+    expect(
+      within(header as HTMLElement).getByRole('button', { name: 'Open workspace palette' }),
+    ).not.toBeNull()
   })
 
   test('connects the ported navigation, filters, and collection to canonical routes', async () => {
@@ -88,6 +90,7 @@ describe('AppShell', () => {
       filters: { status: [], owner: [], label: [], relationship: [] },
     })
 
+    await fireEvent.click(screen.getByRole('button', { name: 'Open workspace palette' }))
     await fireEvent.input(screen.getByLabelText('Search tasks'), { target: { value: 'example' } })
     await waitFor(() =>
       expect(onNavigate).toHaveBeenCalledWith({
@@ -231,6 +234,7 @@ describe('AppShell', () => {
       },
     })
 
+    await fireEvent.click(screen.getByRole('button', { name: 'Open workspace palette' }))
     await fireEvent.click(screen.getByRole('button', { name: /Project scope: example-project/i }))
     await fireEvent.mouseDown(screen.getByRole('option', { name: 'All projects' }))
 
@@ -266,6 +270,7 @@ describe('AppShell', () => {
       },
     })
 
+    await fireEvent.click(screen.getByRole('button', { name: 'Open workspace palette' }))
     await fireEvent.input(screen.getByLabelText('Search tasks'), { target: { value: 'example' } })
 
     await waitFor(() =>
@@ -387,7 +392,7 @@ describe('AppShell', () => {
     })
   })
 
-  test('uses the persisted split orientation and exposes an accessible layout toggle', async () => {
+  test('uses the persisted navigation state and exposes an accessible toggle', async () => {
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -433,7 +438,10 @@ describe('AppShell', () => {
           columns: ['status', 'title'],
           splitDirection: 'horizontal',
           splitSize: 420,
+          sidebarCollapsed: false,
           collapsedGroups: [],
+          fontSize: 16,
+          fontFamily: 'system',
         },
         onPreferencesChange,
         ...mutationProps(),
@@ -442,17 +450,57 @@ describe('AppShell', () => {
       },
     })
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Theme: System' }))
+    await fireEvent.click(screen.getByRole('button', { name: 'Open workspace palette' }))
+    await fireEvent.click(screen.getByRole('button', { name: 'light' }))
     expect(onPreferencesChange).toHaveBeenCalledWith(
       expect.objectContaining({ theme: 'light', splitDirection: 'horizontal' }),
     )
     onPreferencesChange.mockClear()
 
-    expect(screen.getByRole('separator', { name: 'Resize Kata panes' })).not.toBeNull()
-    await fireEvent.click(screen.getByRole('button', { name: 'Switch to stacked layout' }))
+    await fireEvent.click(screen.getByRole('button', { name: 'Collapse navigation' }))
     expect(onPreferencesChange).toHaveBeenCalledWith(
-      expect.objectContaining({ splitDirection: 'vertical', splitSize: 420 }),
+      expect.objectContaining({ sidebarCollapsed: true, splitDirection: 'horizontal' }),
     )
+  })
+
+  test('keeps the list mounted while detail opens above it and can be expanded or closed', async () => {
+    const selected = snapshot()
+    selected.selected = {
+      state: 'available',
+      issue: { ...selected.collection![0]!, body: '', revision: 3 },
+      comments: [],
+      labels: [],
+      links: [],
+      recurrences: [],
+      history: [],
+    }
+    const onNavigate = vi.fn()
+    render(AppShell, {
+      props: {
+        route: {
+          kind: 'kata',
+          issueUID: '01J00000000000000000000001',
+          graph: false,
+          filters: { status: [], owner: [], label: [], relationship: [] },
+        },
+        snapshot: selected,
+        loading: false,
+        ...mutationProps(),
+        onNavigate,
+        onCreateProject: vi.fn(async () => ({ changed: true })),
+      },
+    })
+
+    expect(screen.getByRole('button', { name: /Example issue/ })).not.toBeNull()
+    const expand = screen.getByRole('button', { name: 'Expand detail' })
+    expect(expand.querySelector('svg')).not.toBeNull()
+    expect(expand.textContent?.trim()).toBe('')
+    await fireEvent.click(screen.getByRole('button', { name: 'Close detail' }))
+    expect(onNavigate).toHaveBeenCalledWith({
+      kind: 'kata',
+      filters: { status: [], owner: [], label: [], relationship: [] },
+      graph: false,
+    })
   })
 
   test('quick-captures a new task through the ported workspace action', async () => {
@@ -475,6 +523,7 @@ describe('AppShell', () => {
       },
     })
 
+    await fireEvent.click(within(container).getByRole('button', { name: 'Open workspace palette' }))
     await fireEvent.click(within(container).getByRole('button', { name: 'New task' }))
     await fireEvent.input(within(container).getByRole('textbox', { name: 'Quick capture' }), {
       target: { value: 'New example task' },
@@ -484,6 +533,32 @@ describe('AppShell', () => {
     })
 
     expect(onCreateIssue).toHaveBeenCalledWith('New example task')
+  })
+
+  test('opens the sidebar project creator from the workspace palette', async () => {
+    render(AppShell, {
+      props: {
+        route: {
+          kind: 'kata',
+          view: 'inbox',
+          graph: false,
+          filters: { status: [], owner: [], label: [], relationship: [] },
+        },
+        snapshot: snapshot(),
+        loading: false,
+        ...mutationProps(),
+        onNavigate: vi.fn(),
+        onCreateProject: vi.fn(async () => ({ changed: true })),
+      },
+    })
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Open workspace palette' }))
+    await fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Workspace palette' })).getByRole('button', {
+        name: 'New project',
+      }),
+    )
+    expect(screen.getByRole('textbox', { name: 'New project name' })).not.toBeNull()
   })
 
   test('designates an Inbox from New task before opening quick capture', async () => {
@@ -504,6 +579,7 @@ describe('AppShell', () => {
       },
     })
 
+    await fireEvent.click(screen.getByRole('button', { name: 'Open workspace palette' }))
     const create = screen.getByRole('button', { name: 'New task' }) as HTMLButtonElement
     expect(create.disabled).toBe(false)
     await fireEvent.click(create)

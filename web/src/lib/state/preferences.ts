@@ -1,11 +1,18 @@
 export const preferencesStorageKey = 'kata.preferences.v1'
 
+export const MIN_FONT_SIZE = 8
+export const MAX_FONT_SIZE = 24
+export const DEFAULT_FONT_SIZE = 16
+
 export interface Preferences {
   theme: 'system' | 'light' | 'dark'
   columns: string[]
   splitDirection: 'horizontal' | 'vertical'
   splitSize: number
+  sidebarCollapsed: boolean
   collapsedGroups: string[]
+  fontSize: number
+  fontFamily: 'system' | 'rounded' | 'mono'
 }
 
 export const defaultPreferences: Preferences = {
@@ -13,7 +20,15 @@ export const defaultPreferences: Preferences = {
   columns: ['status', 'title'],
   splitDirection: 'vertical',
   splitSize: 420,
+  sidebarCollapsed: false,
   collapsedGroups: [],
+  fontSize: DEFAULT_FONT_SIZE,
+  fontFamily: 'system',
+}
+
+function clampFontSize(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_FONT_SIZE
+  return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, Math.round(value)))
 }
 
 export function loadPreferences(storage: Storage = localStorage): Preferences {
@@ -29,7 +44,11 @@ export function loadPreferences(storage: Storage = localStorage): Preferences {
         typeof value.splitSize === 'number' && value.splitSize >= 160 && value.splitSize <= 4000
           ? value.splitSize
           : defaultPreferences.splitSize,
+      sidebarCollapsed: value.sidebarCollapsed === true,
       collapsedGroups: stringArray(value.collapsedGroups, []),
+      fontSize: clampFontSize(value.fontSize),
+      fontFamily:
+        value.fontFamily === 'rounded' || value.fontFamily === 'mono' ? value.fontFamily : 'system',
     }
   } catch {
     return cloneDefaults()
@@ -57,7 +76,13 @@ export function savePreferences(
       typeof current.splitSize === 'number' && current.splitSize >= 160 && current.splitSize <= 4000
         ? current.splitSize
         : defaultPreferences.splitSize,
+    sidebarCollapsed: current.sidebarCollapsed === true,
     collapsedGroups: stringArray(current.collapsedGroups, []),
+    fontSize: clampFontSize(current.fontSize),
+    fontFamily:
+      current.fontFamily === 'rounded' || current.fontFamily === 'mono'
+        ? current.fontFamily
+        : 'system',
   }
   storage.setItem(preferencesStorageKey, JSON.stringify(allowed))
 }

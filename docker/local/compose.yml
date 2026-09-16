@@ -1,0 +1,19 @@
+services:
+  kata:
+    build:
+      context: ../..
+      dockerfile: deploy/railway/Dockerfile
+    ports:
+      - "${KATA_LOCAL_PORT:-8081}:8080"
+    volumes:
+      - kata-local-data:/data
+      - ./entrypoint.sh:/local-entrypoint.sh:ro
+    env_file: .env
+    environment:
+      PORT: "8080"
+      PUBLIC_ORIGIN: "http://localhost:${KATA_LOCAL_PORT:-8081}"
+      KATA_WEB_ALLOWED_HOSTS: "kata:8080"
+    entrypoint: ["/bin/sh", "/local-entrypoint.sh"]
+
+volumes:
+  kata-local-data:
