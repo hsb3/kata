@@ -1,6 +1,5 @@
 <script lang="ts">
   import { DetailDrawer, IconButton, TopBar, type TypeaheadOption } from '@kenn-io/kit-ui'
-  import MenuIcon from '@lucide/svelte/icons/menu'
   import type { UIIssueReference } from '../lib/api/generated'
   import type { WebDaemonInfo } from '../lib/daemons/client'
   import type { KataRoute, ShareableFilters, SystemView } from '../lib/router'
@@ -27,6 +26,7 @@
   } from '../lib/kata/types'
   import type { UISnapshot } from '../lib/state/snapshot'
   import { defaultPreferences, type Preferences } from '../lib/state/preferences'
+  import { actionIcons } from '../lib/icons/actions'
   import ActionQueue from './ActionQueue.svelte'
   import IssueCollection from './IssueCollection.svelte'
   import IssueDetail from './IssueDetail.svelte'
@@ -437,25 +437,29 @@
               mobileNavigationOpen = true
             }}
           >
-            <MenuIcon size={15} strokeWidth={1.8} aria-hidden="true" />
+            <actionIcons.menu size={15} strokeWidth={1.8} aria-hidden="true" />
           </IconButton>
         </span>
-        <button
-          type="button"
+        <IconButton
+          ariaLabel={preferences.sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+          title={preferences.sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
           onclick={toggleSidebar}
-          aria-label={preferences.sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-          class="layout-label"
-          >{preferences.sidebarCollapsed ? 'Show navigation' : 'Hide navigation'}</button
         >
+          {#if preferences.sidebarCollapsed}
+            <actionIcons.sidebarExpand size={15} strokeWidth={1.8} aria-hidden="true" />
+          {:else}
+            <actionIcons.sidebarCollapse size={15} strokeWidth={1.8} aria-hidden="true" />
+          {/if}
+        </IconButton>
         <button
           type="button"
           bind:this={paletteTrigger}
-          class="layout-label"
+          class="icon-action"
           aria-label="Open workspace palette"
           title="Workspace palette (Ctrl/Cmd+K)"
           onclick={() => (paletteOpen = true)}
         >
-          Workspace
+          <actionIcons.menu size={15} strokeWidth={1.8} aria-hidden="true" />
         </button>
       </div>
     {/snippet}
@@ -544,20 +548,28 @@
 
 {#snippet detailHeader()}
   <div class="overlay-header-actions">
-    <button type="button" class="layout-label" onclick={() => (detailExpanded = !detailExpanded)}>
-      {detailExpanded ? 'Restore detail' : 'Expand detail'}
-    </button>
-    <button type="button" class="layout-label" aria-label="Close detail" onclick={closeDetail}
-      >Close</button
+    <IconButton
+      ariaLabel={detailExpanded ? 'Restore detail' : 'Expand detail'}
+      title={detailExpanded ? 'Restore detail' : 'Expand detail'}
+      onclick={() => (detailExpanded = !detailExpanded)}
     >
+      {#if detailExpanded}
+        <actionIcons.restore size={15} strokeWidth={1.8} aria-hidden="true" />
+      {:else}
+        <actionIcons.expand size={15} strokeWidth={1.8} aria-hidden="true" />
+      {/if}
+    </IconButton>
+    <IconButton ariaLabel="Close detail" title="Close detail" onclick={closeDetail}>
+      <actionIcons.close size={15} strokeWidth={1.8} aria-hidden="true" />
+    </IconButton>
   </div>
 {/snippet}
 
 {#snippet graphHeader()}
   <div class="overlay-header-actions">
-    <button type="button" class="layout-label" aria-label="Close graph" onclick={closeGraph}
-      >Close</button
-    >
+    <IconButton ariaLabel="Close graph" title="Close graph" onclick={closeGraph}>
+      <actionIcons.close size={15} strokeWidth={1.8} aria-hidden="true" />
+    </IconButton>
   </div>
 {/snippet}
 
@@ -741,12 +753,20 @@
     border-radius: 4px;
     padding: 6px;
   }
-  .layout-label {
-    background: transparent;
+  .icon-action {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
     border: 0;
-    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-primary);
     cursor: pointer;
-    font: inherit;
+  }
+  .icon-action:hover {
+    background: var(--bg-hover);
   }
   .kata-feature {
     height: 100%;

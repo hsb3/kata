@@ -490,7 +490,9 @@ describe('AppShell', () => {
     })
 
     expect(screen.getByRole('button', { name: /Example issue/ })).not.toBeNull()
-    expect(screen.getByRole('button', { name: 'Expand detail' })).not.toBeNull()
+    const expand = screen.getByRole('button', { name: 'Expand detail' })
+    expect(expand.querySelector('svg')).not.toBeNull()
+    expect(expand.textContent?.trim()).toBe('')
     await fireEvent.click(screen.getByRole('button', { name: 'Close detail' }))
     expect(onNavigate).toHaveBeenCalledWith({
       kind: 'kata',
