@@ -1,0 +1,253 @@
+<script lang="ts">
+  import { tick } from 'svelte'
+  import type { WebDaemonInfo } from '../lib/daemons/client'
+  import type { KataProjectSummary, KataTaskSearchFilters } from '../lib/kata/types'
+  import { toggleKataTaskSort, type KataTaskSort, type KataTaskSortKey } from '../lib/kata/sort'
+  import type { KataTaskColumnVisibility } from '../lib/kata/columns'
+  import type { Preferences } from '../lib/state/preferences'
+  import ColumnPicker from './ColumnPicker.svelte'
+  import IssueFilters from './IssueFilters.svelte'
+  import KataDaemonSwitcher from './KataDaemonSwitcher.svelte'
+  import Modal from './Modal.svelte'
+
+  interface Props {
+    open: boolean
+    trigger?: HTMLButtonElement | null
+    filters: KataTaskSearchFilters
+    projects: readonly KataProjectSummary[]
+    sort: KataTaskSort
+    columnVisibility: KataTaskColumnVisibility
+    preferences: Preferences
+    daemons: WebDaemonInfo[]
+    activeDaemonID?: string | undefined
+    daemonSwitching?: boolean | undefined
+    reconnecting?: boolean | undefined
+    daemonError?: string | undefined
+    canMutate: boolean
+    mutationPending: boolean
+    onClose: () => void
+    onFiltersChange: (filters: KataTaskSearchFilters, changed: keyof KataTaskSearchFilters) => void
+    onReset: () => void
+    onSortChange: (sort: KataTaskSort) => void
+    onColumnVisibilityChange: (visibility: KataTaskColumnVisibility) => void
+    onPreferencesChange: (preferences: Preferences) => void
+    onSelectDaemon: (id: string) => void
+    onNewTask: () => void
+    onOpenView: (name: 'inbox' | 'today' | 'ready' | 'all') => void
+  }
+
+  let {
+    open,
+    trigger = null,
+    filters,
+    projects,
+    sort,
+    columnVisibility,
+    preferences,
+    daemons,
+    activeDaemonID = undefined,
+    daemonSwitching = false,
+    reconnecting = false,
+    daemonError = undefined,
+    canMutate,
+    mutationPending,
+    onClose,
+    onFiltersChange,
+    onReset,
+    onSortChange,
+    onColumnVisibilityChange,
+    onPreferencesChange,
+    onSelectDaemon,
+    onNewTask,
+    onOpenView,
+  }: Props = $props()
+
+  let palette = $state<HTMLElement | null>(null)
+
+  $effect(() => {
+    if (!open) return
+    void tick().then(() => palette?.querySelector<HTMLElement>('[data-palette-focus]')?.focus())
+  })
+
+  function close(): void {
+    onClose()
+    queueMicrotask(() => trigger?.focus())
+  }
+
+  function setSort(key: KataTaskSortKey): void {
+    onSortChange(toggleKataTaskSort(sort, key))
+  }
+
+  function showAllColumns(): void {
+    onColumnVisibilityChange({
+      attention: true,
+      updated: true,
+      priority: true,
+      due: true,
+      owner: true,
+      tags: true,
+    })
+  }
+
+  function setTheme(theme: Preferences['theme']): void {
+    onPreferencesChange({ ...preferences, theme })
+  }
+
+  function setGraphDirection(splitDirection: Preferences['splitDirection']): void {
+    onPreferencesChange({ ...preferences, splitDirection })
+  }
+</script>
+
+<Modal
+  {open}
+  title="Workspace palette"
+  ariaLabel="Workspace palette"
+  width={680}
+  showClose
+  onClose={close}
+>
+  <div class="workspace-palette" bind:this={palette}>
+    <section aria-label="Search and filters">
+      <div class="section-heading">
+        <h2>Find tasks</h2>
+        <button type="button" onclick={onReset}>Reset filters</button>
+      </div>
+      <p class="hint">Reset keeps the current project scope.</p>
+      <IssueFilters {filters} {projects} onChange={onFiltersChange} />
+    </section>
+    <section aria-label="List settings">
+      <h2>List</h2>
+      <div class="control-row">
+        <span>Sort</span>
+        {#each ['updated', 'priority', 'title', 'owner'] as key (key)}
+          <button
+            type="button"
+            aria-pressed={sort.key === key}
+            onclick={() => setSort(key as KataTaskSortKey)}>{key}</button
+          >
+        {/each}
+        <ColumnPicker
+          visibility={columnVisibility}
+          onchange={onColumnVisibilityChange}
+          onShowAll={showAllColumns}
+        />
+      </div>
+    </section>
+    <section aria-label="Workspace actions">
+      <h2>Workspace</h2>
+      <div class="control-row">
+        <button
+          data-palette-focus
+          type="button"
+          disabled={!canMutate || mutationPending}
+          onclick={onNewTask}>New task</button
+        >
+        <button type="button" onclick={() => onOpenView('inbox')}>Inbox</button>
+        <button type="button" onclick={() => onOpenView('today')}>Today</button>
+        <button type="button" onclick={() => onOpenView('ready')}>Ready</button>
+        <button type="button" onclick={() => onOpenView('all')}>All Open</button>
+      </div>
+      <div class="control-row">
+        <span>Appearance</span>
+        {#each ['system', 'light', 'dark'] as theme (theme)}<button
+            type="button"
+            aria-pressed={preferences.theme === theme}
+            onclick={() => setTheme(theme as Preferences['theme'])}>{theme}</button
+          >{/each}
+      </div>
+      <div class="control-row">
+        <span>Graph layout</span>
+        <button
+          type="button"
+          aria-pressed={preferences.splitDirection === 'horizontal'}
+          onclick={() => setGraphDirection('horizontal')}>Left to right</button
+        >
+        <button
+          type="button"
+          aria-pressed={preferences.splitDirection === 'vertical'}
+          onclick={() => setGraphDirection('vertical')}>Top to bottom</button
+        >
+      </div>
+      {#if daemons.length > 0}
+        <div class="control-row">
+          <span>Daemon</span><KataDaemonSwitcher
+            {daemons}
+            activeId={activeDaemonID}
+            activeStatusLabel={daemonError ?? (reconnecting ? 'Reconnecting…' : undefined)}
+            activeStatusTone={daemonError ? 'error' : undefined}
+            disabled={daemonSwitching || mutationPending}
+            onSelect={onSelectDaemon}
+          />
+        </div>
+      {/if}
+    </section>
+  </div>
+</Modal>
+
+<style>
+  .workspace-palette {
+    display: grid;
+    gap: var(--space-6);
+    padding: var(--space-5);
+    max-height: min(70vh, 680px);
+    overflow-y: auto;
+  }
+  section {
+    display: grid;
+    gap: var(--space-3);
+  }
+  h2 {
+    margin: 0;
+    font-size: var(--font-size-sm);
+  }
+  .section-heading,
+  .control-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+  .section-heading button {
+    margin-left: auto;
+  }
+  .hint {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+  }
+  button {
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    padding: var(--space-2) var(--space-3);
+    font: inherit;
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+  }
+  button[aria-pressed='true'] {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+  }
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .control-row > span {
+    min-width: 88px;
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+  }
+  :global(.workspace-palette .kata-search-panel) {
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  :global(.workspace-palette .kata-search-toolbar) {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  :global(.workspace-palette .query-field) {
+    flex-basis: 100%;
+  }
+</style>

@@ -73,6 +73,7 @@
 
   function dismissOnEscape(event: KeyboardEvent): void {
     if (event.key !== 'Escape') return
+    if (event.target instanceof Element && event.target.closest('[aria-expanded="true"]')) return
     event.preventDefault()
     event.stopPropagation()
     onClose()

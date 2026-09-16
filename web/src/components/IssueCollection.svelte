@@ -19,11 +19,9 @@
     type KataTaskSort,
     type KataTaskSortKey,
   } from '../lib/kata/sort'
-  import ColumnPicker from './ColumnPicker.svelte'
   import {
     KATA_OPTIONAL_TASK_COLUMNS,
     loadKataTaskColumnVisibility,
-    persistKataTaskColumnVisibility,
     type KataOptionalTaskColumn,
     type KataTaskColumnVisibility,
   } from '../lib/kata/columns'
@@ -72,19 +70,14 @@
     sort: controlledSort = undefined,
     columnVisibility: controlledColumnVisibility = undefined,
     onSortChange = undefined,
-    onColumnVisibilityChange = undefined,
     onSelect,
     onOpenGraph = undefined,
   }: Props = $props()
 
   const restoredColumnVisibility = loadKataTaskColumnVisibility()
   const restoredSort = loadKataTaskSort()
-  const initialSort = sortForColumnVisibility(restoredSort, restoredColumnVisibility)
-  let localSort: KataTaskSort = $state(initialSort)
-  let localColumnVisibility = $state(restoredColumnVisibility)
-  let sort = $derived(controlledSort ?? localSort)
-  let columnVisibility = $derived(controlledColumnVisibility ?? localColumnVisibility)
-  if (initialSort !== restoredSort) persistKataTaskSort(initialSort)
+  let sort = $derived(controlledSort ?? restoredSort)
+  let columnVisibility = $derived(controlledColumnVisibility ?? restoredColumnVisibility)
 
   type TaskGridLayout = 'wide' | 'medium' | 'compact' | 'narrow'
 
@@ -268,44 +261,7 @@
       onSortChange?.(next)
       return
     }
-    localSort = next
     persistKataTaskSort(next)
-  }
-
-  function optionalColumnForSort(key: KataTaskSortKey): KataOptionalTaskColumn | null {
-    if (key === 'updated' || key === 'priority' || key === 'owner') return key
-    return null
-  }
-
-  function sortForColumnVisibility(
-    current: KataTaskSort,
-    visibility: KataTaskColumnVisibility,
-  ): KataTaskSort {
-    const activeSortColumn = optionalColumnForSort(current.key)
-    return activeSortColumn && !visibility[activeSortColumn]
-      ? { key: 'title', direction: 'asc' }
-      : current
-  }
-
-  function setColumnVisibility(next: KataTaskColumnVisibility): void {
-    const nextSort = sortForColumnVisibility(sort, next)
-    if (nextSort !== sort) {
-      setSort(nextSort)
-    }
-    if (controlledColumnVisibility !== undefined) {
-      onColumnVisibilityChange?.(next)
-      return
-    }
-    localColumnVisibility = next
-    persistKataTaskColumnVisibility(next)
-  }
-
-  function showAllColumns(): void {
-    setColumnVisibility(
-      Object.fromEntries(
-        KATA_OPTIONAL_TASK_COLUMNS.map(({ id }) => [id, true]),
-      ) as KataTaskColumnVisibility,
-    )
   }
 
   function viewTitle(view: KataCurrentView): string {
@@ -774,11 +730,6 @@
         >
       </div>
       <div class="header-actions">
-        <ColumnPicker
-          visibility={columnVisibility}
-          onchange={setColumnVisibility}
-          onShowAll={showAllColumns}
-        />
         {#if hasExpandableVisibleRows || hasAnyExpandedRows}
           <div class="tree-actions" aria-label="Task tree controls">
             <button

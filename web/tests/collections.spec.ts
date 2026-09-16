@@ -2,6 +2,34 @@ import { expect, test } from './fixtures'
 
 test.use({ trace: 'off' })
 
+test('workspace palette opens from its labelled trigger and controls the active list', async ({
+  page,
+  kata,
+}) => {
+  const credentials = await kata.launch(page)
+  await kata.seedIssue(page, credentials, { title: 'Palette matching task', owner: 'user-a' })
+  await kata.seedIssue(page, credentials, { title: 'Unrelated task', owner: 'user-b' })
+  await page.reload()
+
+  const trigger = page.getByRole('button', { name: 'Open workspace palette' })
+  await expect(trigger).toBeVisible()
+  await page.keyboard.press('ControlOrMeta+K')
+  await expect(page.getByRole('dialog', { name: 'Workspace palette' })).toBeVisible()
+
+  await page.getByRole('searchbox', { name: 'Search tasks' }).fill('Palette matching')
+  await expect(page).toHaveURL(/text=Palette%20matching/)
+  await expect(page.getByRole('button', { name: /Palette matching task/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Unrelated task/ })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Columns' }).click()
+  await page.getByRole('checkbox', { name: 'Owner' }).uncheck()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Workspace palette' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Workspace palette' })).toHaveCount(0)
+  await expect(trigger).toBeFocused()
+})
+
 test('views, projects, filters, columns, hierarchy, and keyboard stay first-class', async ({
   page,
   kata,
