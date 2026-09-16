@@ -10,12 +10,7 @@
     "solo-skills@dotfiles-agents": true,
     "carbon@dotfiles-agents": false,
     "diagrams@dotfiles-agents": false,
-    "pdf@openai-primary-runtime": false,
     "pocketbase@dotfiles-agents": false,
-    "presentations@openai-primary-runtime": false,
-    "railway@claude-plugins-official": false,
-    "spreadsheets@openai-primary-runtime": false,
-    "template-creator@openai-primary-runtime": false,
-    "visualize@openai-bundled": false
+    "railway@claude-plugins-official": false
   }
 }

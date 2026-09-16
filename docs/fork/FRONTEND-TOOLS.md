@@ -8,9 +8,11 @@ and Atelier-generated roles stay ignored.
 
 Copy the plugin and MCP sections from `.codex/config.example.toml` into the
 ignored `.codex/config.toml`, preserving local Atelier settings, then start a
-fresh Codex session. Claude also discovers project settings and `.mcp.json` in
-a fresh session; approve the project MCP when Claude prompts. Project settings
-are parsed configuration, not proof that a current process loaded them.
+fresh Codex session. Claude reads the same Svelte endpoint from `.mcp.json` in
+a fresh session; approve the project MCP when Claude prompts. Independently
+configured user MCP servers use the local `/mcp disable <server>` control for
+this project. Project settings are parsed configuration, not proof that a
+current process loaded them.
 
 The minimal shared Svelte integration is the unauthenticated remote MCP at
 `https://mcp.svelte.dev/mcp`, which offers documentation and static-analysis
