@@ -5,8 +5,8 @@ and `kenn-io/kata` `main`. A file that differs from upstream and isn't listed he
 bug: re-align it or add the row. During upstream merges this is the conflict-resolution
 cheat sheet._
 
-Status: active. Tracking: kata project `kata` on the hosted daemon (this checkout's
-upstream `.kata.toml` binds to it unchanged); parent workstream `dev-journey#9bhq`.
+Status: active. Tracking: the existing `kata` project selected by this checkout's
+name-only `.kata.toml` binding.
 
 ## Ground rules
 
@@ -35,6 +35,7 @@ upstream `.kata.toml` binds to it unchanged); parent workstream `dev-journey#9bh
 
 | Date | What | Why | Move + merge rule |
 |---|---|---|---|
+| 2026-09-15 | Fork-controlled reusable test workflow, hosted Linux runners, and push validation on `dev` and preserved `main` | Keep fork CI independent of upstream workflow and runner configuration | Modify; retain fork-local workflow reference, branch triggers, and read-only permissions while incorporating upstream test improvements |
 | 2026-09-15 | Adopt `dev` as the maintained fork branch; remove the obsolete project identity field; declare `docs/fork/frontend-overhaul/UX-PATTERNS.md` | Preserve the existing board and make the requested palette and overlay behavior explicit before implementation | Modify+Addition; retain the fork branch model and name-only project binding |
 | 2026-09-13 | Adopted this SOP and ledger (`FORK_CHANGES.md`) | Governance baseline | Addition; upstream never has this file |
 | 2026-09-14 | Build mode: built from the checkout. Macs: `make install` with mise's pinned Go/Bun (`GOBIN=$HOME/.local/bin`, which precedes `/opt/homebrew/bin` on PATH, so it shadows the Homebrew client — done on BigMac 2026-09-14 from 6756dde, M5 1002; Homebrew 0.16.0 keg kept pinned as rollback). Daemon: `deploy/railway/Dockerfile` + `entrypoint.sh` + `Dockerfile.dockerignore` (fork-only directory), documented in `docs/fork/migration/BUILD.md` (ark1). Version stamp stays upstream's `git describe` output; fork builds are identified by the `g<sha>` suffix | One documented way to produce fork binaries for both targets before the Railway cutover; no fork tags or release automation, per AGENTS.md | Addition; upstream has no container build. Hosted daemon runs the fork build from `deploy/railway/Dockerfile` at 6756dde since 2026-09-14 (M4 j3v2: `railway up` snapshot, deployment 721ec69c, schema 27; repo-connect deferred to M7). Second Mac still on Homebrew 0.16.0 until M5 completes there |
@@ -50,4 +51,4 @@ upstream `.kata.toml` binds to it unchanged); parent workstream `dev-journey#9bh
 | What | Why it stays |
 |---|---|
 | `.kata.toml` project name `kata` | Preserve the existing board; the legacy repository identity is no longer needed |
-| Upstream CI workflows | Need no secrets; free test coverage on fork pushes |
+| Existing CI checks and release snapshot validation | Keep backend, browser, package, and build coverage with fork-controlled workflows; publishing remains external |
