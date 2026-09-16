@@ -1,0 +1,34 @@
+# Copy the plugin and MCP sections into the ignored .codex/config.toml, then
+# start a fresh Codex session. Keep Atelier-generated writable-root settings local.
+
+[plugins]
+"atelier@dotfiles-agents" = { enabled = true }
+"browser@openai-bundled" = { enabled = true }
+"bun@dotfiles-agents" = { enabled = true }
+"code-desk@dotfiles-agents" = { enabled = true }
+"codex-app-tools@openai-bundled" = { enabled = true }
+"computer-use@openai-bundled" = { enabled = true }
+"frontend-design@claude-plugins-official" = { enabled = true }
+"kata@kata-oversight" = { enabled = true }
+"ponytail@ponytail" = { enabled = true }
+"solo-skills@dotfiles-agents" = { enabled = true }
+"typescript-lsp@claude-plugins-official" = { enabled = true }
+"unified-computer-use@openai-bundled" = { enabled = true }
+"carbon@dotfiles-agents" = { enabled = false }
+"diagrams@dotfiles-agents" = { enabled = false }
+"pdf@openai-primary-runtime" = { enabled = false }
+"pocketbase@dotfiles-agents" = { enabled = false }
+"presentations@openai-primary-runtime" = { enabled = false }
+"railway@claude-plugins-official" = { enabled = false }
+"spreadsheets@openai-primary-runtime" = { enabled = false }
+"template-creator@openai-primary-runtime" = { enabled = false }
+"visualize@openai-bundled" = { enabled = false }
+
+[mcp_servers.excalidraw]
+enabled = false
+
+[mcp_servers.railway]
+enabled = false
+
+[mcp_servers.svelte]
+url = "https://mcp.svelte.dev/mcp"
