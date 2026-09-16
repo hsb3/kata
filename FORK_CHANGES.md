@@ -35,6 +35,7 @@ name-only `.kata.toml` binding.
 
 | Date | What | Why | Move + merge rule |
 |---|---|---|---|
+| 2026-09-15 | Guard the close-reason schema constructor's required property before accessing its constant | Preserve MCP validation semantics while satisfying the existing NilAway check | Modify; retain the constructor invariant when upstream schema construction changes |
 | 2026-09-15 | Canonical `.agents/skills` with Claude/Codex links, project frontend plugin settings, and official Svelte MCP configuration | Share project guidance and load tools relevant to the Svelte/Vite/Bun frontend | Modify+Addition; preserve shared skills and project overrides; keep generated roles and machine-specific Codex settings local |
 | 2026-09-15 | Ignore machine-local agent activation configuration | Keep local hook policy and machine-specific setup out of the public fork | Addition; retain local-only ignores |
 | 2026-09-15 | Fork-controlled reusable test workflow, hosted Linux runners, and push validation on `dev` and preserved `main` | Keep fork CI independent of upstream workflow and runner configuration | Modify; retain fork-local workflow reference, branch triggers, and read-only permissions while incorporating upstream test improvements |
