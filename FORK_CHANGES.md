@@ -12,11 +12,18 @@ name-only `.kata.toml` binding.
 
 - Public GitHub fork (light tier). `origin` = hsb3/kata, `upstream` = kenn-io/kata,
   fetch-only (`git remote set-url --push upstream DISABLED`).
-- `dev` is the fork's maintained branch and intended default: upstream `main` plus
-  the divergences below. From `dev`, sync with
-  `git fetch upstream && git merge refs/remotes/upstream/main`; never rebase `dev`.
-  The existing `main` remains preserved; it is not a pristine upstream mirror.
+- `dev` is the fork's maintained branch and GitHub default, tracking `origin/dev`:
+  upstream code plus the divergences below. New fork PRs target `dev`.
+- `refs/remotes/upstream/main` tracks upstream's default branch. Refresh it with
+  `git fetch upstream`; no local mirror branch or sync automation is needed.
+  Upstream intake is optional and deliberate. To integrate an update, create a
+  temporary `fork/upstream-sync-<date>` branch from a clean `dev`, merge
+  `refs/remotes/upstream/main`, resolve against this ledger, run the verify gate,
+  then merge the reviewed result into `dev`. Never rebase published `dev`.
   Lockfiles: take upstream's and re-run the generator.
+- The existing `main` is preserved as the earlier fork baseline, not an upstream
+  mirror or an integration target. Changing the GitHub default does not deploy
+  code or upgrade installed clients; those targets are managed separately.
 - Upstream-bound fixes branch from `upstream/main` (never from fork `dev`), so their PRs
   carry no fork commits. They merge into fork `dev` too, with a ledger row whose merge
   rule is "drop when upstream merges it".
@@ -35,6 +42,7 @@ name-only `.kata.toml` binding.
 
 | Date | What | Why | Move + merge rule |
 |---|---|---|---|
+| 2026-09-21 | Set GitHub default to `dev`, retain `main` as the earlier fork baseline, and use `upstream/main` as the upstream tracking ref | Make the divergent fork the primary code and keep upstream intake deliberate | Modify; preserve the branch roles and verified temporary-branch merge procedure above |
 | 2026-09-15 | Persisted sidebar collapse plus independent task-detail and reachable-graph overlays, with fullscreen and nested-dialog keyboard behavior | Give task content room without losing the list, filters, or navigation context | Modify; preserve the interaction contract in `docs/fork/frontend-overhaul/UX-PATTERNS.md` when merging shell and modal changes |
 | 2026-09-15 | Guard the close-reason schema constructor's required property before accessing its constant | Preserve MCP validation semantics while satisfying the existing NilAway check | Modify; retain the constructor invariant when upstream schema construction changes |
 | 2026-09-15 | Canonical `.agents/skills` with Claude/Codex links, project frontend plugin settings, and official Svelte MCP configuration | Share project guidance and load tools relevant to the Svelte/Vite/Bun frontend | Modify+Addition; preserve shared skills and project overrides; keep generated roles and machine-specific Codex settings local |
