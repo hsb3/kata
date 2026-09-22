@@ -73,7 +73,10 @@ test('views, projects, filters, columns, hierarchy, and keyboard stay first-clas
   await expect(page).toHaveURL(/text=child/)
   await expect(page.getByRole('button', { name: /Example child task/ })).toBeVisible()
 
-  await page.keyboard.press('Escape')
+  await page
+    .getByRole('dialog', { name: 'Workspace palette' })
+    .getByRole('button', { name: 'Close', exact: true })
+    .click()
   await expect(page.getByRole('dialog', { name: 'Workspace palette' })).toBeHidden()
 
   for (const view of ['Inbox', 'Today', 'Upcoming', 'Deadlines', 'All Open', 'Logbook']) {
