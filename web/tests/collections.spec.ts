@@ -68,6 +68,10 @@ test('views, projects, filters, columns, hierarchy, and keyboard stay first-clas
   await parentRow.focus()
   await parentRow.press('ArrowDown')
   await expect(page.getByRole('button', { name: /Example child task/ })).toBeFocused()
+  const detail = page.getByRole('dialog', { name: 'Task detail' })
+  await expect(detail).toContainText('Example child task')
+  await detail.getByRole('button', { name: 'Close detail', exact: true }).click()
+  await expect(detail).toBeHidden()
 
   await page.getByRole('button', { name: 'Open workspace palette' }).click()
   await page.getByRole('searchbox', { name: 'Search tasks' }).fill('child')
