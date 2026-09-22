@@ -42,6 +42,8 @@ name-only `.kata.toml` binding.
 
 | Date | What | Why | Move + merge rule |
 |---|---|---|---|
+| 2026-09-21 | Handle Columns picker Escape before the containing modal, restoring focus to its trigger | Dismiss only the active popup while keeping the workspace palette open | Modify; preserve one-layer dismissal and focus restoration when merging picker or modal changes |
+| 2026-09-21 | Preserve explicit `SDKROOT` in isolated development and lifecycle-test builds; align browser checks with the palette and independent overlays | Allow compatible installed macOS SDKs and verify the fork's current interactions | Modify; retain toolchain selection without inheriting daemon targets or credentials, and preserve the UX contract when updating browser tests |
 | 2026-09-21 | Set GitHub default to `dev`, retain `main` as the earlier fork baseline, and use `upstream/main` as the upstream tracking ref | Make the divergent fork the primary code and keep upstream intake deliberate | Modify; preserve the branch roles and verified temporary-branch merge procedure above |
 | 2026-09-15 | Persisted sidebar collapse plus independent task-detail and reachable-graph overlays, with fullscreen and nested-dialog keyboard behavior | Give task content room without losing the list, filters, or navigation context | Modify; preserve the interaction contract in `docs/fork/frontend-overhaul/UX-PATTERNS.md` when merging shell and modal changes |
 | 2026-09-15 | Guard the close-reason schema constructor's required property before accessing its constant | Preserve MCP validation semantics while satisfying the existing NilAway check | Modify; retain the constructor invariant when upstream schema construction changes |

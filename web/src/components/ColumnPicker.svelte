@@ -31,6 +31,14 @@
     open = false
   }
 
+  function handleKeydown(event: KeyboardEvent): void {
+    if (!open || event.key !== 'Escape' || event.defaultPrevented) return
+    event.preventDefault()
+    event.stopPropagation()
+    close()
+    trigger?.focus()
+  }
+
   function position(): void {
     if (!trigger || !panel) return
     panelStyle = floatingPopoverStyle({
@@ -53,7 +61,7 @@
   }
 </script>
 
-<div class="column-picker">
+<div class="column-picker" role="presentation" onkeydown={handleKeydown}>
   <button
     bind:this={trigger}
     type="button"

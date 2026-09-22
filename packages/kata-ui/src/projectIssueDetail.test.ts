@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { ShowIssueResponseBody } from '../../../web/src/lib/api/generated/models/showIssueResponseBody.ts'
+import type { ShowIssueResponseBody } from '../../../web/src/lib/api/generated/models/showIssueResponseBody.js'
 import { projectIssueDetail } from './projectIssueDetail.js'
 import type { KataIssueDetailWire } from './types.js'
 

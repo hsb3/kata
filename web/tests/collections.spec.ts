@@ -17,14 +17,16 @@ test('workspace palette opens from its labelled trigger and controls the active 
   await expect(page.getByRole('dialog', { name: 'Workspace palette' })).toBeVisible()
 
   await page.getByRole('searchbox', { name: 'Search tasks' }).fill('Palette matching')
-  await expect(page).toHaveURL(/text=Palette%20matching/)
+  await expect(page).toHaveURL((url) => url.searchParams.get('text') === 'Palette matching')
   await expect(page.getByRole('button', { name: /Palette matching task/ })).toBeVisible()
   await expect(page.getByRole('button', { name: /Unrelated task/ })).toHaveCount(0)
 
   await page.getByRole('button', { name: 'Columns' }).click()
   await page.getByRole('checkbox', { name: 'Owner' }).uncheck()
   await page.keyboard.press('Escape')
+  await expect(page.getByText('Shown when space allows')).toBeHidden()
   await expect(page.getByRole('dialog', { name: 'Workspace palette' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Columns' })).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog', { name: 'Workspace palette' })).toHaveCount(0)
   await expect(trigger).toBeFocused()
@@ -53,19 +55,34 @@ test('views, projects, filters, columns, hierarchy, and keyboard stay first-clas
   await page.getByRole('button', { name: /Example parent task/ }).press('ArrowRight')
   await expect(page.getByRole('button', { name: /Example child task/ })).toBeVisible()
 
+  await page.getByRole('button', { name: 'Open workspace palette' }).click()
   await page.getByRole('button', { name: 'Columns' }).click()
   await expect(page.getByText('Shown when space allows')).toBeVisible()
   await expect(page.getByRole('checkbox', { name: 'Owner' })).toBeChecked()
   await page.keyboard.press('Escape')
+  await expect(page.getByText('Shown when space allows')).toBeHidden()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Workspace palette' })).toBeHidden()
 
   const parentRow = page.getByRole('button', { name: /Example parent task/ })
   await parentRow.focus()
   await parentRow.press('ArrowDown')
   await expect(page.getByRole('button', { name: /Example child task/ })).toBeFocused()
+  const detail = page.getByRole('dialog', { name: 'Task detail' })
+  await expect(detail).toContainText('Example child task')
+  await detail.getByRole('button', { name: 'Close detail', exact: true }).click()
+  await expect(detail).toBeHidden()
 
+  await page.getByRole('button', { name: 'Open workspace palette' }).click()
   await page.getByRole('searchbox', { name: 'Search tasks' }).fill('child')
   await expect(page).toHaveURL(/text=child/)
   await expect(page.getByRole('button', { name: /Example child task/ })).toBeVisible()
+
+  await page
+    .getByRole('dialog', { name: 'Workspace palette' })
+    .getByRole('button', { name: 'Close', exact: true })
+    .click()
+  await expect(page.getByRole('dialog', { name: 'Workspace palette' })).toBeHidden()
 
   for (const view of ['Inbox', 'Today', 'Upcoming', 'Deadlines', 'All Open', 'Logbook']) {
     await page
@@ -88,9 +105,16 @@ test('project creation and quick capture use the designated inbox project', asyn
   await page.getByRole('textbox', { name: 'New project name' }).press('Enter')
   await expect(page.getByRole('button', { name: /^example-workspace\b/ })).toBeVisible()
 
-  await page.getByRole('button', { name: 'New task' }).click()
+  await page.getByRole('button', { name: 'Open workspace palette' }).click()
+  await page
+    .getByRole('dialog', { name: 'Workspace palette' })
+    .getByRole('button', { name: 'New task', exact: true })
+    .click()
   await page.getByRole('textbox', { name: 'Quick capture' }).fill('Captured example task')
   await page.getByRole('textbox', { name: 'Quick capture' }).press('Enter')
+  await expect(page.getByRole('textbox', { name: 'Quick capture' })).toBeHidden()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Workspace palette' })).toBeHidden()
   await expect(page.getByRole('button', { name: /Captured example task/ })).toBeVisible()
 })
 
@@ -113,7 +137,10 @@ test('New task designates an Inbox before opening quick capture', async ({ page,
   expect(cleared.ok()).toBe(true)
   await page.reload()
 
-  const create = page.getByRole('button', { name: 'New task' })
+  await page.getByRole('button', { name: 'Open workspace palette' }).click()
+  const create = page
+    .getByRole('dialog', { name: 'Workspace palette' })
+    .getByRole('button', { name: 'New task', exact: true })
   await expect(create).toBeEnabled()
   await create.click()
   await expect(page.getByRole('dialog', { name: 'Choose Inbox project' })).toBeVisible()

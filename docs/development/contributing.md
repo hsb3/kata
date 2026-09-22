@@ -64,6 +64,17 @@ origin, browser-session, CSRF, and SSE policy as production. It does not add a
 development authentication or Origin bypass. Set `KATA_WEB_DEV_PORT` to use a
 different Vite port.
 
+On macOS, the launcher preserves an explicit `SDKROOT` for the Go build. If the
+default SDK is incompatible with the installed linker, select a compatible
+installed SDK for the command, for example:
+
+```sh
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk make web-dev
+```
+
+The same override applies to the browser checks below; it does not change the
+system toolchain or disable CGO.
+
 Run the static, unit, and real proxy checks with:
 
 ```sh

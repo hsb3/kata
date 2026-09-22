@@ -53,19 +53,29 @@ test('project capture, complete in read detail, and intact IDs', async ({ page, 
   await page.setViewportSize({ width: 1440, height: 900 })
   await kata.launch(page)
   await page.goto(`${kata.origin}/kata?scope=${kata.projectUID}`)
-  await page.getByRole('button', { name: 'New task', exact: true }).click()
+  await page.getByRole('button', { name: 'Open workspace palette' }).click()
+  await page
+    .getByRole('dialog', { name: 'Workspace palette' })
+    .getByRole('button', { name: 'New task', exact: true })
+    .click()
   await expect(page.getByRole('dialog', { name: 'Choose Inbox project' })).toHaveCount(0)
   const input = page.getByRole('textbox', { name: 'Quick capture' })
   await input.fill('Scoped example capture')
   await input.press('Enter')
+  await expect(input).toBeHidden()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Workspace palette' })).toBeHidden()
   await expect(
     page.locator('.issue-row').filter({ hasText: 'Scoped example capture' }),
   ).toBeVisible()
   await page.locator('.issue-row').filter({ hasText: 'Scoped example capture' }).click()
   await expect(page.getByRole('button', { name: 'Complete', exact: true })).toBeVisible()
   const list = await page.locator('.list-column').boundingBox()
-  const detail = await page.locator('.detail-column').boundingBox()
-  expect(detail!.x).toBeGreaterThan(list!.x)
+  const overlay = page.getByRole('dialog', { name: 'Task detail' })
+  await expect(overlay).toBeVisible()
+  const detail = await overlay.boundingBox()
+  expect(detail!.x).toBeLessThan(list!.x + list!.width)
+  expect(detail!.y).toBeLessThan(list!.y + list!.height)
   await page.goto(`${kata.origin}/kata?view=all-open`)
   for (const cell of await page.locator('.cell-id').all()) {
     expect(await cell.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
@@ -215,7 +225,7 @@ test('merged teammate attribution survives read and edit detail', async ({ page,
   await expect(page.locator('.shared-detail')).toContainText('example-owner / example-agent')
   await expect(page.getByRole('button', { name: 'Complete', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Edit issue', exact: true }).click()
-  await expect(page.getByRole('region', { name: 'Task detail', exact: true })).toContainText(
+  await expect(page.getByRole('dialog', { name: 'Task detail', exact: true })).toContainText(
     'example-owner / example-agent',
   )
 })

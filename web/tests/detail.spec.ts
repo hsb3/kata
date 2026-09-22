@@ -17,7 +17,7 @@ test('detail editing and close reasons round-trip through live Kata authority', 
   await page.getByRole('button', { name: 'Edit title' }).click()
   await page.getByRole('textbox', { name: 'Edit title' }).fill('Edited example task')
   await page.getByRole('textbox', { name: 'Edit title' }).press('Enter')
-  await expect(page.getByRole('region', { name: 'Task detail' })).toContainText(
+  await expect(page.getByRole('dialog', { name: 'Task detail' })).toContainText(
     'Edited example task',
   )
 

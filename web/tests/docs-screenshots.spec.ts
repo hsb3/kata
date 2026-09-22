@@ -93,8 +93,7 @@ test('captures stable Web UI documentation states from synthetic issues', async 
   await capture(page, join(outputDir, 'workspace.png'), replacements)
 
   await page.goto(`${kata.origin}/kata?issue=${parent.uid}`)
-  await page.getByRole('button', { name: 'Switch to side-by-side layout' }).click()
-  await expect(page.getByRole('button', { name: 'Switch to stacked layout' })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'Task detail' })).toBeVisible()
   await page.evaluate(() => {
     document.documentElement.style.zoom = '0.875'
   })
@@ -133,7 +132,6 @@ test('captures stable Web UI documentation states from synthetic issues', async 
   await page.evaluate(() => {
     document.documentElement.style.zoom = ''
   })
-  await page.getByRole('button', { name: 'Switch to stacked layout' }).click()
   await page.goto(`${kata.origin}/kata?issue=${parent.uid}&graph=1`)
   const graph = page.getByRole('region', { name: 'Reachable task graph' })
   await expect(graph).toBeVisible()
@@ -143,6 +141,7 @@ test('captures stable Web UI documentation states from synthetic issues', async 
   await capture(page, join(outputDir, 'relationships.png'), replacements)
 
   await page.goto(`${kata.origin}/kata?scope=${kata.projectUID}`)
+  await page.getByRole('button', { name: 'Open workspace palette' }).click()
   await page.getByRole('button', { name: 'Switch Kata daemon: example-local' }).click()
   await expect(page.getByRole('menuitemradio', { name: /example-local/ })).toBeVisible()
   await expect(page.getByRole('menuitemradio', { name: /example-remote/ })).toBeVisible()

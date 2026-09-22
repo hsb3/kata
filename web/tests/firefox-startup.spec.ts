@@ -7,6 +7,6 @@ test(
   { tag: '@firefox' },
   async ({ page, kata }) => {
     await page.goto(`${kata.origin}/kata?view=all-open`)
-    await expect(page.getByRole('button', { name: 'New task' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Open workspace palette' })).toBeVisible()
   },
 )
