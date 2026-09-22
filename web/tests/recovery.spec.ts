@@ -94,7 +94,12 @@ test('read-only loopback listeners open directly without login ceremony', async 
     await page.goto(`${kata.origin}/kata?view=all-open`)
 
     await expect(page.getByRole('status', { name: 'Read-only Kata session' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'New task' })).toBeDisabled()
+    await page.getByRole('button', { name: 'Open workspace palette' }).click()
+    await expect(
+      page
+        .getByRole('dialog', { name: 'Workspace palette' })
+        .getByRole('button', { name: 'New task', exact: true }),
+    ).toBeDisabled()
   } finally {
     await kata.restart()
   }

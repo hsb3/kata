@@ -62,7 +62,7 @@ test('desktop navigation collapses into list space and persists after reload', a
   await expect(page.locator('.desktop-navigation')).toBeHidden()
 })
 
-test('task filters stay inside the desktop workspace without overlapping', async ({
+test('palette filters stay contained and task attention remains visible', async ({
   page,
   kata,
 }) => {
@@ -76,7 +76,8 @@ test('task filters stay inside the desktop workspace without overlapping', async
   await page.goto(`${kata.origin}/kata?view=all-open`)
   await expect(page.getByRole('button', { name: 'Collapse navigation' })).toBeVisible()
 
-  const layout = await page.locator('.kata-search-toolbar').evaluate((toolbar) => {
+  await page.getByRole('button', { name: 'Open workspace palette' }).click()
+  const layout = await page.locator('.workspace-palette').evaluate((toolbar) => {
     const container = toolbar.getBoundingClientRect()
     const controls = Array.from(toolbar.querySelectorAll('input, button, select'), (element) => {
       const rect = element.getBoundingClientRect()
@@ -103,6 +104,8 @@ test('task filters stay inside the desktop workspace without overlapping', async
   })
 
   expect(layout).toEqual({ height: expect.any(Number), contained: true, overlaps: false })
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Workspace palette' })).toBeHidden()
   const attention = page.locator(`.issue-row[data-uid="${issue.uid}"] .attention-chip`)
   await page.locator(`.issue-row[data-uid="${issue.uid}"]`).scrollIntoViewIfNeeded()
   expect(

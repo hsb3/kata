@@ -7,5 +7,5 @@ test('token-configured direct loopback tab loads the workspace snapshot', async 
   kata,
 }) => {
   await page.goto(`${kata.origin}/kata?view=all-open`)
-  await expect(page.getByRole('button', { name: 'New task' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Open workspace palette' })).toBeVisible()
 })

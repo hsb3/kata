@@ -54,7 +54,7 @@ test('desktop and responsive detail remain focused, contrasted, and axe-clean', 
   await page.goto(`${kata.origin}/kata?issue=${issue.uid}`)
 
   await expect(page.getByRole('button', { name: 'Switch daemon' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Open workspace' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Open workspace', exact: true })).toHaveCount(0)
   await expect(page.getByRole('dialog', { name: 'Command palette' })).toHaveCount(0)
   await expect(page.getByRole('region', { name: 'Kata issue detail' })).toBeVisible()
 
@@ -70,7 +70,7 @@ test('desktop and responsive detail remain focused, contrasted, and axe-clean', 
   expect(results.violations).toEqual([])
 
   await page.setViewportSize({ width: 390, height: 844 })
-  await expect(page.getByRole('region', { name: 'Task detail' })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'Task detail' })).toBeVisible()
   results = await new AxeBuilder({ page }).analyze()
   expect(results.violations).toEqual([])
 })
@@ -147,7 +147,9 @@ test('attention queue, ready queue, and close evidence remain accessible', async
     `?view=logbook&issue=${closed.uid}`,
   ]) {
     await page.goto(`${kata.origin}/kata${route}`)
-    await expect(page.getByRole('button', { name: 'New task', exact: true })).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'Open workspace palette', exact: true }),
+    ).toBeVisible()
     const results = await new AxeBuilder({ page }).analyze()
     expect(
       results.violations.filter(

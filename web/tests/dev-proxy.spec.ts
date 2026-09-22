@@ -15,7 +15,7 @@ test('Vite proxy flushes authenticated SSE', async ({ page }) => {
     await readFile(join(process.cwd(), '..', '.kata-web-dev', 'active.json'), 'utf8'),
   ) as DevRuntime
   await page.goto(`${runtime.publicOrigin}/kata?view=all-open`)
-  await expect(page.getByRole('button', { name: 'New task' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Open workspace palette' })).toBeVisible()
 
   const credentials = await page.evaluate(() => {
     const value = sessionStorage.getItem('kata.web.session.v1')

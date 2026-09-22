@@ -6,12 +6,12 @@ test('direct loopback tabs create independent browser sessions', async ({ browse
   const firstContext = await browser.newContext()
   const firstPage = await firstContext.newPage()
   await firstPage.goto(`${kata.origin}/kata?view=all-open`)
-  await expect(firstPage.getByRole('button', { name: 'New task' })).toBeVisible()
+  await expect(firstPage.getByRole('button', { name: 'Open workspace palette' })).toBeVisible()
 
   const secondContext = await browser.newContext()
   const secondPage = await secondContext.newPage()
   await secondPage.goto(`${kata.origin}/kata?view=all-open`)
-  await expect(secondPage.getByRole('button', { name: 'New task' })).toBeVisible()
+  await expect(secondPage.getByRole('button', { name: 'Open workspace palette' })).toBeVisible()
 
   await firstContext.close()
   await secondContext.close()
