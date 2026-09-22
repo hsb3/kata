@@ -26,6 +26,7 @@ test('workspace palette opens from its labelled trigger and controls the active 
   await page.keyboard.press('Escape')
   await expect(page.getByText('Shown when space allows')).toBeHidden()
   await expect(page.getByRole('dialog', { name: 'Workspace palette' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Columns' })).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog', { name: 'Workspace palette' })).toHaveCount(0)
   await expect(trigger).toBeFocused()
