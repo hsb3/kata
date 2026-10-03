@@ -1,4 +1,4 @@
 version = 1
 
 [project]
-name = "kata"
+name = "kata-agent-task-manager"
