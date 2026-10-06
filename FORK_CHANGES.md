@@ -22,17 +22,15 @@ name-only `.kata.toml` binding.
   then merge the reviewed result into `dev`. Never rebase published `dev`.
   Lockfiles: take upstream's and re-run the generator.
 - The existing `main` is preserved as the earlier fork baseline, not an upstream
-  mirror or an integration target. Changing the GitHub default does not deploy
-  code or upgrade installed clients; those targets are managed separately.
+  mirror or an integration target.
 - Upstream-bound fixes branch from `upstream/main` (never from fork `dev`), so their PRs
   carry no fork commits. They merge into fork `dev` too, with a ledger row whose merge
   rule is "drop when upstream merges it".
 - Fork-only work lands on `fork/<topic>` branches, merged to `dev` with its ledger row in
   the same commit. Divergence commits are prefixed `fork:`.
-- Fork builds run from their own path only (never replace the installed `kata` client).
-  Run them against an isolated home: unset `KATA_SERVER` and `KATA_AUTH_TOKEN`, set
-  `KATA_HOME` to a temp dir. Upstream `main` is at DB schema 26; the hosted daemon is at
-  25, so a fork daemon must not be pointed at the hosted database.
+- Run development builds against an isolated home: unset `KATA_SERVER` and
+  `KATA_AUTH_TOKEN`, set `KATA_HOME` to a temp dir, so a fork binary never migrates a
+  database it does not own.
 - Verify gate after every sync or fork change: `go test ./...`, `make web-check`
   when `web/` changed.
   - Run tests with `TMPDIR=/tmp/kt` (`mkdir -p /tmp/kt` first): the default macOS
@@ -52,11 +50,11 @@ name-only `.kata.toml` binding.
 | 2026-09-15 | Fork-controlled reusable test workflow, hosted Linux runners, and push validation on `dev` and preserved `main` | Keep fork CI independent of upstream workflow and runner configuration | Modify; retain fork-local workflow reference, branch triggers, and read-only permissions while incorporating upstream test improvements |
 | 2026-09-15 | Adopt `dev` as the maintained fork branch; remove the obsolete project identity field; declare `docs/fork/frontend-overhaul/UX-PATTERNS.md` | Preserve the existing board and make the requested palette and overlay behavior explicit before implementation | Modify+Addition; retain the fork branch model and name-only project binding |
 | 2026-09-13 | Adopted this SOP and ledger (`FORK_CHANGES.md`) | Governance baseline | Addition; upstream never has this file |
-| 2026-09-14 | Build mode: built from the checkout. Macs: `make install` with mise's pinned Go/Bun (`GOBIN=$HOME/.local/bin`, which precedes `/opt/homebrew/bin` on PATH, so it shadows the Homebrew client — done on BigMac 2026-09-14 from 6756dde, M5 1002; Homebrew 0.16.0 keg kept pinned as rollback). Daemon: `deploy/railway/Dockerfile` + `entrypoint.sh` + `Dockerfile.dockerignore` (fork-only directory), documented in `docs/fork/migration/BUILD.md` (ark1). Version stamp stays upstream's `git describe` output; fork builds are identified by the `g<sha>` suffix | One documented way to produce fork binaries for both targets before the Railway cutover; no fork tags or release automation, per AGENTS.md | Addition; upstream has no container build. Hosted daemon runs the fork build from `deploy/railway/Dockerfile` at 6756dde since 2026-09-14 (M4 j3v2: `railway up` snapshot, deployment 721ec69c, schema 27; repo-connect deferred to M7). Second Mac still on Homebrew 0.16.0 until M5 completes there |
+| 2026-09-14 | Container build for the daemon: `deploy/railway/Dockerfile`, `entrypoint.sh` and `Dockerfile.dockerignore` (fork-only directory), documented with the checkout build in `docs/fork/migration/BUILD.md` (ark1). Version stamp stays upstream's `git describe` output; fork builds are identified by the `g<sha>` suffix | One documented way to produce fork binaries as a CLI or a container; no fork tags or release automation, per AGENTS.md | Addition; upstream has no container build |
 | 2026-09-13 | internal/mcp/server.go: root not / if-then-else instead of root oneOf/allOf in tool input schemas (bfe11bb) | Messages API rejects top-level oneOf/allOf/anyOf; upstream PR kenn-io/kata#365 | Modify; keep ours (Henry 2026-09-14: upstream PRs are courtesy only) |
 | 2026-09-13 | cmd/kata/mcp.go: requireMCPDaemonHealth retries transport failures ≤20s at startup (05e06e6); docs/fork/mcp-actor-connect.md | Claude Code never retries a stdio server that exits before initialize | Modify; keep ours, re-apply if upstream reworks requireDaemonAPIVersionHealth; candidate for an upstream PR |
 | 2026-09-13 | docs/fork/frontend-overhaul/ (spec, seed.sh, screenshots) | Fork-only planning docs | Addition; keep ours |
-| 2026-09-14 | Upstream PR kenn-io/kata#363 teammate attribution merged ahead of upstream (4ebf0ec): CLI/MCP teammate field, KATA_TEAMMATE/KATA_INBOX_USER, notify/inbox prerequisite from #359, DB schema 27 | Per-call actor attribution for shared MCP sessions (fork issue ec1e); Henry consented to the schema change 2026-09-14 | Modify; when upstream merges #363/#359 take theirs wholesale, otherwise keep ours. Hosted daemon must be upgraded to schema 27 before any fork binary talks to it |
+| 2026-09-14 | Upstream PR kenn-io/kata#363 teammate attribution merged ahead of upstream (4ebf0ec): CLI/MCP teammate field, KATA_TEAMMATE/KATA_INBOX_USER, notify/inbox prerequisite from #359, DB schema 27 | Per-call actor attribution for shared MCP sessions (fork issue ec1e); Henry consented to the schema change 2026-09-14 | Modify; when upstream merges #363/#359 take theirs wholesale, otherwise keep ours. A fork binary requires a daemon at schema 27 or later |
 | 2026-09-13 | Frontend wave 1: attention and Ready views, close evidence and actions, project navigation, scoped capture, ID layout, tests and acceptance report; integrated origin/main a91b7b2 with teammate attribution | Make agent state and completion evidence visible and improve navigation at scale; A5 uses persisted events, while owner-local Claim remains excluded by the existing daemon allowlist | Modify+Addition; keep ours on conflict, new components preferred over edits to hot files |
 | 2026-09-14 | internal/daemon/web_session.go: `webLocalIssueRequestAllowed` also allows `POST /actions/claim` for the owner-local browser principal (table row in `internal/daemon/web_session_test.go`) | UI Claim returned 403 `web_local_operation_forbidden` (wave 1 acceptance A10, fork issue jgfd). Claim resolves its actor through the same `attributedActor(ctx, in.Body.Actor)` path as the already-allowed assign/unassign, so it grants no authority the local-web session did not already have; Henry ruled it allowed 2026-09-14 | Modify; keep ours. Re-apply if upstream reworks the SPA action allowlist |
 
